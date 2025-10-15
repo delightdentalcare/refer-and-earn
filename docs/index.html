@@ -2,16 +2,46 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Refer and Earn</title>
-  <link rel="stylesheet" href="/css/style.css"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Refer & Earn - Delight Dental</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/app.js"></script>
 </head>
 <body>
   <header>
-    <h1>Refer and Earn</h1>
+    <h1>Delight Dental Refer & Earn 💎</h1>
   </header>
-  <main>
-    <p>Site is now working!</p>
+
+  <main id="content">
+    <div id="auth-section">
+      <h2>Sign Up</h2>
+      <input type="text" id="name" placeholder="Full Name" />
+      <input type="text" id="locality" placeholder="Nationality, State, LGA" />
+      <input type="email" id="email" placeholder="Email" />
+      <input type="tel" id="phone" placeholder="Phone" />
+      <input type="password" id="password" placeholder="Password" />
+      <button id="signupBtn">Register</button>
+      <p>Already have an account? <a href="#" id="loginLink">Login</a></p>
+    </div>
+
+    <div id="dashboard" style="display:none;">
+      <h2>Welcome, <span id="username"></span> ⭐</h2>
+      <p>Level: <span id="userLevel">1</span></p>
+      <p>Earnings: ₦<span id="earnings">0</span></p>
+      <button id="withdrawBtn">Withdraw</button>
+
+      <h3>Upgrade Level</h3>
+      <button onclick="upgrade(2)">⭐ Level 2 (₦3000)</button>
+      <button onclick="upgrade(3)">⭐⭐ Level 3 (₦5000)</button>
+
+      <h3>Upload News / Story</h3>
+      <input type="text" id="storyTitle" placeholder="Title">
+      <textarea id="storyBody" placeholder="Story"></textarea>
+      <input type="file" id="storyImage" accept="image/*">
+      <button id="postStoryBtn">Post Story</button>
+
+      <div id="newsFeed"></div>
+    </div>
   </main>
 </body>
-</html>
+  </html>
