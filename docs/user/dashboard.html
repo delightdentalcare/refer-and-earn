@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Dashboard - Refer & Earn</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <script type="module" src="../js/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>Welcome, <span id="username"></span> ⭐</h1>
+  </header>
+
+  <section id="stats">
+    <p>Level: <span id="userLevel">1</span> ⭐</p>
+    <p>Earnings: ₦<span id="earnings">0</span></p>
+  </section>
+
+  <section>
+    <button onclick="upgrade(2)">Upgrade to Level 2 (₦3000)</button>
+    <button onclick="upgrade(3)">Upgrade to Level 3 (₦5000)</button>
+  </section>
+
+  <section id="withdraw">
+    <h2>Request Withdrawal</h2>
+    <input type="text" id="bankName" placeholder="Bank Name" required>
+    <input type="text" id="accountNumber" placeholder="Account Number" required>
+    <button id="withdrawBtn">Submit Withdrawal</button>
+  </section>
+</body>
+</html>
+
