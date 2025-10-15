@@ -1,33 +1,52 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>User Dashboard - Refer & Earn</title>
-  <link rel="stylesheet" href="../css/style.css">
-  <script type="module" src="../js/app.js" defer></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>refer and earn — Dashboard</title>
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <header>
-    <h1>Welcome, <span id="username"></span> ⭐</h1>
+  <header class="topbar">
+    <h2>refer and earn</h2>
+    <button id="btn-logout">Logout</button>
   </header>
 
-  <section id="stats">
-    <p>Level: <span id="userLevel">1</span> ⭐</p>
-    <p>Earnings: ₦<span id="earnings">0</span></p>
-  </section>
+  <main class="container">
+    <section class="card">
+      <h3>Welcome, <span id="u-name">User</span></h3>
+      <p>Your balance: ₦<span id="u-balance">0</span></p>
+      <p>Referral link: <input id="ref-link" readonly /> <button id="copy-ref">Copy</button></p>
+      <div class="share-buttons">
+        <button id="share-wa">Share WhatsApp</button>
+        <button id="share-fb">Share Facebook</button>
+        <button id="share-tw">Share Twitter</button>
+        <button id="share-tele">Share Telegram</button>
+      </div>
+      <div class="actions">
+        <button id="btn-daily">Claim Daily Bonus (₦25)</button>
+        <button id="btn-upload">Upload Story</button>
+        <a href="story.html">View Stories</a>
+      </div>
+    </section>
 
-  <section>
-    <button onclick="upgrade(2)">Upgrade to Level 2 (₦3000)</button>
-    <button onclick="upgrade(3)">Upgrade to Level 3 (₦5000)</button>
-  </section>
+    <section class="card" id="ads-slot">
+      <h4>Sponsored</h4>
+      <div id="ads-list"></div>
+    </section>
 
-  <section id="withdraw">
-    <h2>Request Withdrawal</h2>
-    <input type="text" id="bankName" placeholder="Bank Name" required>
-    <input type="text" id="accountNumber" placeholder="Account Number" required>
-    <button id="withdrawBtn">Submit Withdrawal</button>
-  </section>
+    <section class="card">
+      <h4>Withdraw</h4>
+      <input id="withdraw-amount" placeholder="Amount (₦)" type="number" />
+      <input id="withdraw-account" placeholder="Paystack email or account ref" />
+      <button id="btn-withdraw">Request Withdrawal</button>
+      <div id="withdraw-status"></div>
+    </section>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
-
