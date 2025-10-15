@@ -1,39 +1,40 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin — refer and earn</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="container">
+    <section class="card">
+      <h2>Admin Panel</h2>
+      <div id="admin-login">
+        <input id="admin-user" placeholder="Admin username" />
+        <input id="admin-pass" placeholder="Admin password" type="password" />
+        <button id="btn-admin-login">Login</button>
+      </div>
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBMV7NUVLf-9aEer5jlhqOv5u_Z7XM5oVo",
-  authDomain: "refer-and-earn-74706.firebaseapp.com",
-  databaseURL: "https://refer-and-earn-74706-default-rtdb.firebaseio.com",
-  projectId: "refer-and-earn-74706",
-  storageBucket: "refer-and-earn-74706.firebasestorage.app",
-  messagingSenderId: "681290792261",
-  appId: "1:681290792261:web:982ae0c9f81b7291bc922c",
-  measurementId: "G-GYJ5D768D6"
-};
+      <div id="admin-area" style="display:none">
+        <h3>Stats</h3>
+        <div id="stat-users">Users: 0</div>
+        <div id="stat-pending">Pending withdrawals: 0</div>
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+        <h3>Withdrawals</h3>
+        <div id="withdraw-list"></div>
 
-document.getElementById("loginBtn").addEventListener("click", () => {
-  const u = document.getElementById("adminUser").value;
-  const p = document.getElementById("adminPass").value;
+        <h3>Ads</h3>
+        <div id="ads-management"></div>
 
-  if (u === "batir" && p === "mubsbatir") {
-    document.getElementById("login").style.display = "none";
-    document.getElementById("adminDashboard").style.display = "block";
+        <h3>Stories</h3>
+        <div id="stories-management"></div>
+      </div>
+    </section>
+  </main>
 
-    const usersRef = ref(db, "users");
-    onValue(usersRef, (snapshot) => {
-      const data = snapshot.val();
-      const list = document.getElementById("usersList");
-      list.innerHTML = "";
-      for (const id in data) {
-        const user = data[id];
-        list.innerHTML += `<li>${user.name} - Level ${user.level} - ₦${user.earnings}</li>`;
-      }
-    });
-  } else {
-    alert("Invalid admin login");
-  }
-});
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
