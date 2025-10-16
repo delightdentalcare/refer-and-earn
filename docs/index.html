@@ -1,6 +1,22 @@
-git init
-git remote add origin https://github.com/delightdentalcare/refer-and-earn.git
-git branch -M main
-git add .
-git commit -m "Initial working refer & earn setup"
-git push -u origin main
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Refer & Earn | Login</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script type="module" src="js/app.js" defer></script>
+</head>
+<body>
+  <h2>🔥 Refer & Earn Platform</h2>
+
+  <div id="auth-section">
+    <h3>Login / Register</h3>
+    <input type="email" id="email" placeholder="Enter email" required /><br />
+    <input type="password" id="password" placeholder="Enter password" required /><br />
+    <button id="registerBtn">Register</button>
+    <button id="loginBtn">Login</button>
+    <p id="message"></p>
+  </div>
+</body>
+</html>
