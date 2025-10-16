@@ -1,47 +1,117 @@
-<!DOCTYPE html>
+cat > index.html <<'HTML'
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Refer & Earn - Delight Dental</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Refer & Earn — Signup / Login</title>
   <link rel="stylesheet" href="css/style.css">
-  <script type="module" src="js/app.js"></script>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
-  <header>
-    <h1>Delight Dental Refer & Earn 💎</h1>
-  </header>
+  <main class="container center">
+    <div class="card auth-card">
+      <h1 class="brand">Refer & Earn</h1>
+      <p class="lead">Signup or login with email & password.</p>
 
-  <main id="content">
-    <div id="auth-section">
-      <h2>Sign Up</h2>
-      <input type="text" id="name" placeholder="Full Name" />
-      <input type="text" id="locality" placeholder="Nationality, State, LGA" />
-      <input type="email" id="email" placeholder="Email" />
-      <input type="tel" id="phone" placeholder="Phone" />
-      <input type="password" id="password" placeholder="Password" />
-      <button id="signupBtn">Register</button>
-      <p>Already have an account? <a href="#" id="loginLink">Login</a></p>
-    </div>
+      <div class="row">
+        <div class="col">
+          <h3>Sign up</h3>
+          <input id="su_name" placeholder="Full name">
+          <input id="su_email" placeholder="Email">
+          <input id="su_password" type="password" placeholder="Password">
+          <button id="btnSignup" class="btn">Create account</button>
+        </div>
 
-    <div id="dashboard" style="display:none;">
-      <h2>Welcome, <span id="username"></span> ⭐</h2>
-      <p>Level: <span id="userLevel">1</span></p>
-      <p>Earnings: ₦<span id="earnings">0</span></p>
-      <button id="withdrawBtn">Withdraw</button>
+        <div class="col">
+          <h3>Login</h3>
+          <input id="li_email" placeholder="Email">
+          <input id="li_password" type="password" placeholder="Password">
+          <button id="btnLogin" class="btn btn-ghost">Login</button>
+        </div>
+      </div>
 
-      <h3>Upgrade Level</h3>
-      <button onclick="upgrade(2)">⭐ Level 2 (₦3000)</button>
-      <button onclick="upgrade(3)">⭐⭐ Level 3 (₦5000)</button>
-
-      <h3>Upload News / Story</h3>
-      <input type="text" id="storyTitle" placeholder="Title">
-      <textarea id="storyBody" placeholder="Story"></textarea>
-      <input type="file" id="storyImage" accept="image/*">
-      <button id="postStoryBtn">Post Story</button>
-
-      <div id="newsFeed"></div>
+      <p class="muted">Admin? <a href="admin.html">Admin Panel</a> • Advertiser? <a href="advertiser.html">Place an ad</a></p>
     </div>
   </main>
+
+<script>
+/* FIREBASE CONFIG (your project) */
+const firebaseConfig = {
+  apiKey: "AIzaSyBMV7NUVLf-9aEer5jlhqOv5u_Z7XM5oVo",
+  authDomain: "refer-and-earn-74706.firebaseapp.com",
+  databaseURL: "https://refer-and-earn-74706-default-rtdb.firebaseio.com",
+  projectId: "refer-and-earn-74706",
+  storageBucket: "refer-and-earn-74706.firebasestorage.app",
+  messagingSenderId: "681290792261",
+  appId: "1:681290792261:web:982ae0c9f81b7291bc922c",
+  measurementId: "G-GYJ5D768D6"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+/* referral param handling */
+(function(){
+  const url = new URL(location.href);
+  const ref = url.searchParams.get('ref');
+  if(ref) localStorage.setItem('referrer', ref);
+})();
+
+/* Signup with Firebase Auth */
+document.getElementById('btnSignup').addEventListener('click', async ()=>{
+  const name = document.getElementById('su_name').value.trim();
+  const email = document.getElementById('su_email').value.trim().toLowerCase();
+  const password = document.getElementById('su_password').value;
+  if(!name || !email || !password) return alert('Fill all fields');
+
+  try{
+    const res = await auth.createUserWithEmailAndPassword(email, password);
+    const uid = res.user.uid;
+    const userObj = { uid, name, email, balance:0, referrals:0, createdAt: Date.now() };
+    await db.ref('users/'+uid).set(userObj);
+    await db.ref('referrals/'+uid).set({ owner: uid, code: uid });
+
+    const referrer = localStorage.getItem('referrer');
+    if(referrer && referrer !== uid){
+      const rref = await db.ref('users/'+referrer).once('value');
+      if(rref.exists()){
+        const prev = Number(rref.val().referrals || 0);
+        await db.ref('users/'+referrer+'/referrals').set(prev+1);
+        const prevBal = Number(rref.val().balance || 0);
+        await db.ref('users/'+referrer+'/balance').set(prevBal + 50); // ₦50 reward
+      }
+    }
+
+    location.href = 'dashboard.html';
+  }catch(err){
+    alert(err.message);
+  }
+});
+
+/* Login with Firebase Auth */
+document.getElementById('btnLogin').addEventListener('click', async ()=>{
+  const email = document.getElementById('li_email').value.trim().toLowerCase();
+  const password = document.getElementById('li_password').value;
+  if(!email || !password) return alert('Fill all fields');
+  try{
+    await auth.signInWithEmailAndPassword(email, password);
+    location.href = 'dashboard.html';
+  }catch(err){
+    alert(err.message);
+  }
+});
+
+/* redirect to dashboard if already signed in */
+auth.onAuthStateChanged(user => {
+  if(user && (location.pathname.endsWith('index.html') || location.pathname.endsWith('/'))) {
+    location.href = 'dashboard.html';
+  }
+});
+</script>
 </body>
-  </html>
+</html>
+HTML
