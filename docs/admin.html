@@ -1,40 +1,153 @@
+cat > admin.html <<'HTML'
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Admin — refer and earn</title>
+  <title>Admin Panel — Refer & Earn</title>
   <link rel="stylesheet" href="css/style.css">
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
   <main class="container">
-    <section class="card">
+    <div class="card">
       <h2>Admin Panel</h2>
-      <div id="admin-login">
-        <input id="admin-user" placeholder="Admin username" />
-        <input id="admin-pass" placeholder="Admin password" type="password" />
-        <button id="btn-admin-login">Login</button>
+      <div id="loginBox">
+        <input id="adminUser" placeholder="Username">
+        <input id="adminPass" type="password" placeholder="Password">
+        <button id="btnAdminLogin" class="btn">Login</button>
       </div>
 
-      <div id="admin-area" style="display:none">
-        <h3>Stats</h3>
-        <div id="stat-users">Users: 0</div>
-        <div id="stat-pending">Pending withdrawals: 0</div>
+      <div id="panel" style="display:none;">
+        <h3>Welcome Admin</h3>
+        <button id="logoutAdmin" class="btn btn-ghost">Logout</button>
 
-        <h3>Withdrawals</h3>
-        <div id="withdraw-list"></div>
+        <h4>Pending Withdrawals</h4>
+        <div id="withdrawalsList">Loading...</div>
 
-        <h3>Ads</h3>
-        <div id="ads-management"></div>
+        <h4>Pending Ads</h4>
+        <div id="adsList">Loading...</div>
 
-        <h3>Stories</h3>
-        <div id="stories-management"></div>
+        <h4>Users</h4>
+        <div id="usersList">Loading...</div>
       </div>
-    </section>
+    </div>
   </main>
 
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  <script src="js/admin.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBMV7NUVLf-9aEer5jlhqOv5u_Z7XM5oVo",
+  authDomain: "refer-and-earn-74706.firebaseapp.com",
+  databaseURL: "https://refer-and-earn-74706-default-rtdb.firebaseio.com",
+  projectId: "refer-and-earn-74706",
+  storageBucket: "refer-and-earn-74706.firebasestorage.app",
+  messagingSenderId: "681290792261",
+  appId: "1:681290792261:web:982ae0c9f81b7291bc922c",
+  measurementId: "G-GYJ5D768D6"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+/* Simple client-side admin (keep as-is for quick access; secure later) */
+const ADMIN_USER = 'batir';
+const ADMIN_PASS = 'mubsbatir';
+
+document.getElementById('btnAdminLogin').onclick = ()=>{
+  const u = document.getElementById('adminUser').value.trim();
+  const p = document.getElementById('adminPass').value.trim();
+  if(u===ADMIN_USER && p===ADMIN_PASS){
+    localStorage.setItem('admin','true');
+    showPanel();
+  } else alert('Invalid admin credentials');
+};
+
+if(localStorage.getItem('admin')==='true') showPanel();
+
+function showPanel(){
+  document.getElementById('loginBox').style.display='none';
+  document.getElementById('panel').style.display='block';
+  loadWithdrawals();
+  loadAds();
+  loadUsers();
+}
+
+function loadWithdrawals(){
+  db.ref('withdrawals').orderByChild('status').equalTo('pending').on('value', snap=>{
+    const list = document.getElementById('withdrawalsList'); list.innerHTML='';
+    if(!snap.exists()) { list.innerHTML='No pending withdrawals'; return; }
+    snap.forEach(x=>{
+      const d = x.val(); const key = x.key;
+      const div = document.createElement('div'); div.className='item';
+      div.innerHTML = `<p>${d.uid} — ₦${d.amount} → ${d.account}</p>
+        <button class="btn" onclick="approveWithdrawal('${key}', ${d.amount}, '${d.uid}')">Approve</button>`;
+      list.appendChild(div);
+    });
+  });
+}
+
+async function approveWithdrawal(key, amount, uid){
+  if(!confirm('Approve withdrawal?')) return;
+  await db.ref('withdrawals/'+key+'/status').set('approved');
+  // deduct balance (safe via transaction)
+  const userRef = db.ref('users/'+uid);
+  userRef.transaction(current => {
+    if(current){
+      current.balance = (Number(current.balance)||0) - Number(amount);
+    }
+    return current;
+  });
+  await db.ref('notifications/withdrawals').push({ key, uid, amount, approvedAt: Date.now() });
+  alert('Marked approved. (Perform actual transfer using server-side Paystack.)');
+}
+
+function loadAds(){
+  db.ref('adsPending').orderByChild('status').equalTo('paid').on('value', snap=>{
+    const list = document.getElementById('adsList'); list.innerHTML='';
+    if(!snap.exists()) { list.innerHTML='No pending ads'; return; }
+    snap.forEach(x=>{
+      const a = x.val(); const key = x.key;
+      const img = a.imageUrl ? `<img src="${a.imageUrl}" style="max-width:220px;display:block;margin:8px 0;border-radius:6px">` : '';
+      const div = document.createElement('div'); div.className='item';
+      div.innerHTML = `<h4>${a.title} — ₦${a.amount}</h4>${img}<p>${a.body}</p><p>By: ${a.company} (${a.email})</p>
+        <button class="btn" onclick="approveAd('${key}')">Approve</button>`;
+      list.appendChild(div);
+    });
+  });
+}
+
+async function approveAd(key){
+  if(!confirm('Approve ad and move live?')) return;
+  const snap = (await db.ref('adsPending/'+key).once('value')).val();
+  if(!snap) return alert('Ad not found');
+  await db.ref('ads').push({
+    title: snap.title,
+    body: snap.body,
+    link: snap.link||'',
+    company: snap.company||'',
+    imageUrl: snap.imageUrl||'',
+    amount: snap.amount||0,
+    approvedAt: Date.now()
+  });
+  await db.ref('adsPending/'+key+'/status').set('approved');
+  await db.ref('notifications/ads').push({ key, title: snap.title, company: snap.company, approvedAt: Date.now() });
+  alert('Ad approved and moved live.');
+}
+
+function loadUsers(){
+  db.ref('users').on('value', snap=>{
+    const list = document.getElementById('usersList'); list.innerHTML='';
+    snap.forEach(u=>{
+      const user = u.val();
+      const el = document.createElement('div'); el.className='item';
+      el.innerText = `${user.name} — ${user.email} — ₦${user.balance||0}`;
+      list.appendChild(el);
+    });
+  });
+}
+
+document.getElementById('logoutAdmin').addEventListener('click', ()=>{ localStorage.removeItem('admin'); location.reload(); });
+</script>
 </body>
 </html>
+HTML
