@@ -1,52 +1,123 @@
+cat > dashboard.html <<'HTML'
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>refer and earn — Dashboard</title>
+  <title>Dashboard — Refer & Earn</title>
   <link rel="stylesheet" href="css/style.css">
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://js.paystack.co/v1/inline.js"></script>
 </head>
 <body>
-  <header class="topbar">
-    <h2>refer and earn</h2>
-    <button id="btn-logout">Logout</button>
-  </header>
-
   <main class="container">
-    <section class="card">
-      <h3>Welcome, <span id="u-name">User</span></h3>
-      <p>Your balance: ₦<span id="u-balance">0</span></p>
-      <p>Referral link: <input id="ref-link" readonly /> <button id="copy-ref">Copy</button></p>
-      <div class="share-buttons">
-        <button id="share-wa">Share WhatsApp</button>
-        <button id="share-fb">Share Facebook</button>
-        <button id="share-tw">Share Twitter</button>
-        <button id="share-tele">Share Telegram</button>
-      </div>
-      <div class="actions">
-        <button id="btn-daily">Claim Daily Bonus (₦25)</button>
-        <button id="btn-upload">Upload Story</button>
-        <a href="story.html">View Stories</a>
-      </div>
-    </section>
+    <div class="card">
+      <header class="card-header">
+        <h2 id="uName">Dashboard</h2>
+        <div class="actions"><button id="logout" class="btn btn-ghost">Logout</button></div>
+      </header>
 
-    <section class="card" id="ads-slot">
-      <h4>Sponsored</h4>
-      <div id="ads-list"></div>
-    </section>
+      <div class="grid">
+        <div>
+          <p>Balance: <strong>₦<span id="uBalance">0</span></strong></p>
+          <p>Referrals: <strong><span id="uRefs">0</span></strong></p>
 
-    <section class="card">
-      <h4>Withdraw</h4>
-      <input id="withdraw-amount" placeholder="Amount (₦)" type="number" />
-      <input id="withdraw-account" placeholder="Paystack email or account ref" />
-      <button id="btn-withdraw">Request Withdrawal</button>
-      <div id="withdraw-status"></div>
-    </section>
+          <p>Your referral link:</p>
+          <input id="refLink" readonly>
+          <button id="copyRef" class="btn">Copy link</button>
+
+          <hr>
+          <h4>Withdraw</h4>
+          <input id="withdraw_amount" placeholder="Amount (NGN)" type="number">
+          <input id="withdraw_account" placeholder="Bank account or email">
+          <button id="requestWithdraw" class="btn">Request Withdrawal</button>
+        </div>
+
+        <div>
+          <h4>Sponsored</h4>
+          <div class="adsense">AdSense placeholder — add your AdSense code</div>
+          <div id="adsList">Loading ads...</div>
+        </div>
+      </div>
+      <footer class="muted">Advertisers? <a href="advertiser.html">Place an ad</a></footer>
+    </div>
   </main>
 
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  <script src="js/app.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBMV7NUVLf-9aEer5jlhqOv5u_Z7XM5oVo",
+  authDomain: "refer-and-earn-74706.firebaseapp.com",
+  databaseURL: "https://refer-and-earn-74706-default-rtdb.firebaseio.com",
+  projectId: "refer-and-earn-74706",
+  storageBucket: "refer-and-earn-74706.firebasestorage.app",
+  messagingSenderId: "681290792261",
+  appId: "1:681290792261:web:982ae0c9f81b7291bc922c",
+  measurementId: "G-GYJ5D768D6"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+// Paystack public key (LIVE)
+const PAYSTACK_PUBLIC_KEY = 'pk_live_aa0529d581117f84592d7deeaaee3ebac7628a3c';
+
+auth.onAuthStateChanged(async user => {
+  if(!user) return location.href = 'index.html';
+  const uid = user.uid;
+  const snap = await db.ref('users/'+uid).once('value');
+  if(!snap.exists()){
+    const profile = { uid, name: user.displayName || user.email, email: user.email, balance:0, referrals:0, createdAt: Date.now() };
+    await db.ref('users/'+uid).set(profile);
+    document.getElementById('uName').innerText = profile.name;
+    document.getElementById('uBalance').innerText = 0;
+    document.getElementById('uRefs').innerText = 0;
+    document.getElementById('refLink').value = location.origin + '/?ref=' + uid;
+    return;
+  }
+  const u = snap.val();
+  document.getElementById('uName').innerText = u.name || u.email;
+  document.getElementById('uBalance').innerText = u.balance || 0;
+  document.getElementById('uRefs').innerText = u.referrals || 0;
+  document.getElementById('refLink').value = location.origin + '/?ref=' + uid;
+});
+
+// load approved ads (live)
+db.ref('ads').on('value', snap=>{
+  const adsList = document.getElementById('adsList'); adsList.innerHTML='';
+  if(!snap.exists()) return adsList.innerHTML = '<p>No ads</p>';
+  snap.forEach(a=>{
+    const ad = a.val();
+    const el = document.createElement('div'); el.className='ad';
+    const img = ad.imageUrl ? `<p><a href="${ad.link||'#'}" target="_blank"><img src="${ad.imageUrl}" style="max-width:100%;border-radius:6px"></a></p>` : '';
+    el.innerHTML = `<h4>${ad.title}</h4>${img}<p>${ad.body}</p><p><a href="${ad.link||'#'}" target="_blank">Visit</a></p>`;
+    adsList.appendChild(el);
+  });
+});
+
+document.getElementById('copyRef').addEventListener('click', ()=>{ document.getElementById('refLink').select(); document.execCommand('copy'); alert('Copied referral link'); });
+
+document.getElementById('requestWithdraw').addEventListener('click', async ()=>{
+  const amount = Number(document.getElementById('withdraw_amount').value);
+  const account = document.getElementById('withdraw_account').value.trim();
+  if(!amount || amount <= 0) return alert('Enter valid amount');
+  const user = auth.currentUser;
+  if(!user) return alert('Not signed in');
+  const uid = user.uid;
+  const snap = await db.ref('users/'+uid).once('value');
+  const balance = Number(snap.val().balance || 0);
+  if(amount > balance) return alert('Insufficient balance');
+
+  const reqRef = db.ref('withdrawals').push();
+  await reqRef.set({ uid, amount, account, status:'pending', createdAt: Date.now() });
+  await db.ref('notifications/withdrawals').push({ uid, amount, account, createdAt: Date.now() });
+
+  alert('Withdrawal requested — admin will review');
+});
+
+document.getElementById('logout').addEventListener('click', ()=>{ auth.signOut(); });
+</script>
 </body>
 </html>
+HTML
