@@ -1,22 +1,17 @@
-cat > css/style.css <<'CSS'
+cat > css/s
 :root{--bg:#f6f8fb;--card:#fff;--accent:#0a5c2e;--muted:#6b7280}
 *{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:var(--bg);color:#0f172a}
-.container{max-width:960px;margin:28px auto;padding:16px}
-.card{background:var(--card);border-radius:10px;padding:18px;box-shadow:0 6px 18px rgba(15,23,42,0.06)}
-.center{display:flex;align-items:center;justify-content:center;height:84vh}
+.container{max-width:980px;margin:24px auto;padding:12px}
+.card{background:var(--card);border-radius:10px;padding:14px;box-shadow:0 6px 18px rgba(15,23,42,0.06);margin-bottom:12px}
 .auth-card{width:100%;max-width:720px}
-.brand{margin:0;font-size:28px;color:var(--accent)}
-.lead{color:var(--muted);margin:8px 0 16px}
-.tabs{display:flex;gap:8px;margin-bottom:12px}
-.tabBtn{padding:8px 12px;border-radius:8px;border:1px solid #e6eefc;background:#fff;cursor:pointer}
-input,textarea,select{width:100%;padding:10px;margin:8px 0;border:1px solid #e6eefc;border-radius:8px}
-button.btn{background:var(--accent);color:#fff;padding:10px 14px;border:0;border-radius:8px;cursor:pointer}
+.brand{font-size:28px;color:var(--accent)}
+.lead{color:var(--muted);margin:8px 0}
+.tabs{display:flex;gap:8px}
+.tabBtn{padding:8px;border-radius:8px;border:1px solid #e6eefc;background:#fff;cursor:pointer}
+input,textarea,select{width:100%;padding:8px;margin:6px 0;border:1px solid #e6eefc;border-radius:8px}
+button.btn{background:var(--accent);color:#fff;padding:8px 12px;border:0;border-radius:8px;cursor:pointer}
 button.btn-ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
-.row{display:flex;gap:8px}
-.muted{color:var(--muted);font-size:14px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.muted{color:var(--muted);font-size:13px}
 .item{padding:8px;border-bottom:1px solid #f0f4ff;margin-bottom:8px}
-img{max-width:100%;height:auto;border-radius:8px}
 .post-card{padding:10px;border-radius:8px;background:#fff;margin-bottom:12px}
-@media (max-width:700px){.grid{grid-template-columns:1fr}}
-CSS
+img{max-width:100%;height:auto;border-radius:6px}
