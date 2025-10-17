@@ -1,39 +1,60 @@
 cat > admin.html <<'HTML'
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Admin Panel — Refer & Earn</title>
-  <link rel="stylesheet" href="css/style.css">
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-</head>
-<body>
-  <main class="container">
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Admin — Refer & Earn</title>
+<link rel="stylesheet" href="css/style.css"/>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+</head><body>
+<main class="container">
+  <header class="card"><h2>Admin Panel</h2></header>
+
+  <section class="card">
+    <h3>Quick Login</h3>
+    <input id="a_user" placeholder="username">
+    <input id="a_pass" type="password" placeholder="password">
+    <button id="a_login" class="btn">Login</button>
+    <p class="muted">Username: <strong>batir</strong> Password: <strong>mubsbatir</strong></p>
+  </section>
+
+  <section id="adminArea" style="display:none">
     <div class="card">
-      <h2>Admin Panel</h2>
-      <div id="loginBox">
-        <input id="adminUser" placeholder="Username">
-        <input id="adminPass" type="password" placeholder="Password">
-        <button id="btnAdminLogin" class="btn">Login</button>
-      </div>
-
-      <div id="panel" style="display:none;">
-        <h3>Welcome Admin</h3>
-        <button id="logoutAdmin" class="btn btn-ghost">Logout</button>
-
-        <h4>Pending Withdrawals</h4>
-        <div id="withdrawalsList">Loading...</div>
-
-        <h4>Pending Ads</h4>
-        <div id="adsList">Loading...</div>
-
-        <h4>Users</h4>
-        <div id="usersList">Loading...</div>
-      </div>
+      <h3>Analytics</h3>
+      <p>Total users: <strong id="totalUsers">0</strong></p>
+      <p>Pending signups: <strong id="pendingSignups">0</strong></p>
+      <p>Pending ads: <strong id="pendingAds">0</strong></p>
+      <p>Pending withdrawals: <strong id="pendingWithdrawals">0</strong></p>
     </div>
-  </main>
+
+    <div class="card">
+      <h3>Pending Signup Requests</h3>
+      <div id="signupRequests">Loading...</div>
+    </div>
+
+    <div class="card">
+      <h3>Users</h3>
+      <div id="usersList">Loading...</div>
+    </div>
+
+    <div class="card">
+      <h3>Pending Ads</h3>
+      <div id="adsList">Loading...</div>
+    </div>
+
+    <div class="card">
+      <h3>Withdrawals</h3>
+      <div id="withdrawList">Loading...</div>
+    </div>
+
+    <div class="card">
+      <h3>Notifications</h3>
+      <div id="notes">Loading...</div>
+    </div>
+
+  </section>
+</main>
 
 <script>
 const firebaseConfig = {
@@ -43,111 +64,126 @@ const firebaseConfig = {
   projectId: "refer-and-earn-74706",
   storageBucket: "refer-and-earn-74706.firebasestorage.app",
   messagingSenderId: "681290792261",
-  appId: "1:681290792261:web:982ae0c9f81b7291bc922c",
-  measurementId: "G-GYJ5D768D6"
+  appId: "1:681290792261:web:982ae0c9f81b7291bc922c"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-/* Simple client-side admin (keep as-is for quick access; secure later) */
-const ADMIN_USER = 'batir';
-const ADMIN_PASS = 'mubsbatir';
+const ADMIN_USER = 'batir', ADMIN_PASS='mubsbatir';
+document.getElementById('a_login').addEventListener('click', ()=> {
+  const u = document.getElementById('a_user').value.trim(), p = document.getElementById('a_pass').value.trim();
+  if(u===ADMIN_USER && p===ADMIN_PASS){ document.getElementById('adminArea').style.display='block'; document.querySelector('.card').style.display='none'; init(); } else alert('Invalid admin credentials');
+});
 
-document.getElementById('btnAdminLogin').onclick = ()=>{
-  const u = document.getElementById('adminUser').value.trim();
-  const p = document.getElementById('adminPass').value.trim();
-  if(u===ADMIN_USER && p===ADMIN_PASS){
-    localStorage.setItem('admin','true');
-    showPanel();
-  } else alert('Invalid admin credentials');
-};
-
-if(localStorage.getItem('admin')==='true') showPanel();
-
-function showPanel(){
-  document.getElementById('loginBox').style.display='none';
-  document.getElementById('panel').style.display='block';
-  loadWithdrawals();
-  loadAds();
+async function init(){
+  loadAnalytics();
+  loadSignupRequests();
   loadUsers();
+  loadAds();
+  loadWithdrawals();
+  loadNotifications();
 }
 
-function loadWithdrawals(){
-  db.ref('withdrawals').orderByChild('status').equalTo('pending').on('value', snap=>{
-    const list = document.getElementById('withdrawalsList'); list.innerHTML='';
-    if(!snap.exists()) { list.innerHTML='No pending withdrawals'; return; }
-    snap.forEach(x=>{
-      const d = x.val(); const key = x.key;
-      const div = document.createElement('div'); div.className='item';
-      div.innerHTML = `<p>${d.uid} — ₦${d.amount} → ${d.account}</p>
-        <button class="btn" onclick="approveWithdrawal('${key}', ${d.amount}, '${d.uid}')">Approve</button>`;
-      list.appendChild(div);
+async function loadAnalytics(){
+  const users = await db.ref('users').once('value'); document.getElementById('totalUsers').innerText = users.exists()? users.numChildren():0;
+  const signup = await db.ref('signupRequests').orderByChild('status').equalTo('pending').once('value'); document.getElementById('pendingSignups').innerText = signup.exists()? signup.numChildren():0;
+  const ads = await db.ref('adsPending').orderByChild('status').equalTo('paid').once('value'); document.getElementById('pendingAds').innerText = ads.exists()? ads.numChildren():0;
+  const wd = await db.ref('withdrawals').orderByChild('status').equalTo('pending').once('value'); document.getElementById('pendingWithdrawals').innerText = wd.exists()? wd.numChildren():0;
+}
+
+function loadSignupRequests(){
+  db.ref('signupRequests').on('value', snap=>{
+    const c = document.getElementById('signupRequests'); c.innerHTML='';
+    if(!snap.exists()){ c.innerHTML='<p>No signup requests</p>'; return; }
+    snap.forEach(s=>{
+      const r=s.val(); const k=s.key;
+      const d=document.createElement('div'); d.className='item';
+      d.innerHTML = `<p>${r.name||r.email} — ${r.role} — <em>${r.status}</em></p>`;
+      if(r.status==='pending'){
+        const a=document.createElement('button'); a.innerText='Approve'; a.className='btn'; a.onclick=()=>approveSignup(k,r);
+        const dny=document.createElement('button'); dny.innerText='Deny'; dny.className='btn btn-ghost'; dny.onclick=()=>denySignup(k);
+        d.appendChild(a); d.appendChild(dny);
+      }
+      c.appendChild(d);
     });
   });
 }
 
-async function approveWithdrawal(key, amount, uid){
-  if(!confirm('Approve withdrawal?')) return;
-  await db.ref('withdrawals/'+key+'/status').set('approved');
-  // deduct balance (safe via transaction)
-  const userRef = db.ref('users/'+uid);
-  userRef.transaction(current => {
-    if(current){
-      current.balance = (Number(current.balance)||0) - Number(amount);
-    }
-    return current;
-  });
-  await db.ref('notifications/withdrawals').push({ key, uid, amount, approvedAt: Date.now() });
-  alert('Marked approved. (Perform actual transfer using server-side Paystack.)');
+async function approveSignup(key, r){
+  if(!confirm('Approve?')) return;
+  await db.ref('users/'+r.uid+'/approved').set(true);
+  await db.ref('signupRequests/'+key+'/status').set('approved');
+  await db.ref('notifications/'+r.uid).push({ message:'Your account has been approved', at: Date.now() });
+  alert('Approved.');
 }
-
-function loadAds(){
-  db.ref('adsPending').orderByChild('status').equalTo('paid').on('value', snap=>{
-    const list = document.getElementById('adsList'); list.innerHTML='';
-    if(!snap.exists()) { list.innerHTML='No pending ads'; return; }
-    snap.forEach(x=>{
-      const a = x.val(); const key = x.key;
-      const img = a.imageUrl ? `<img src="${a.imageUrl}" style="max-width:220px;display:block;margin:8px 0;border-radius:6px">` : '';
-      const div = document.createElement('div'); div.className='item';
-      div.innerHTML = `<h4>${a.title} — ₦${a.amount}</h4>${img}<p>${a.body}</p><p>By: ${a.company} (${a.email})</p>
-        <button class="btn" onclick="approveAd('${key}')">Approve</button>`;
-      list.appendChild(div);
-    });
-  });
-}
-
-async function approveAd(key){
-  if(!confirm('Approve ad and move live?')) return;
-  const snap = (await db.ref('adsPending/'+key).once('value')).val();
-  if(!snap) return alert('Ad not found');
-  await db.ref('ads').push({
-    title: snap.title,
-    body: snap.body,
-    link: snap.link||'',
-    company: snap.company||'',
-    imageUrl: snap.imageUrl||'',
-    amount: snap.amount||0,
-    approvedAt: Date.now()
-  });
-  await db.ref('adsPending/'+key+'/status').set('approved');
-  await db.ref('notifications/ads').push({ key, title: snap.title, company: snap.company, approvedAt: Date.now() });
-  alert('Ad approved and moved live.');
-}
+async function denySignup(key){ if(!confirm('Deny?')) return; await db.ref('signupRequests/'+key+'/status').set('denied'); alert('Denied.'); }
 
 function loadUsers(){
   db.ref('users').on('value', snap=>{
-    const list = document.getElementById('usersList'); list.innerHTML='';
+    const c = document.getElementById('usersList'); c.innerHTML='';
+    if(!snap.exists()){ c.innerHTML='<p>No users</p>'; return; }
     snap.forEach(u=>{
-      const user = u.val();
-      const el = document.createElement('div'); el.className='item';
-      el.innerText = `${user.name} — ${user.email} — ₦${user.balance||0}`;
-      list.appendChild(el);
+      const v=u.val(); const k=u.key;
+      const d=document.createElement('div'); d.className='item';
+      d.innerHTML = `<p><strong>${v.name||v.email}</strong> — ${v.role||'user'} — ₦${v.balance||0} — Approved:${v.approved? 'YES':'NO'}</p>`;
+      const t=document.createElement('button'); t.innerText = v.approved? 'Disable':'Enable'; t.className='btn'; t.onclick=()=>toggleUser(k, !v.approved);
+      const lvl=document.createElement('button'); lvl.innerText='Set Level'; lvl.className='btn btn-ghost'; lvl.onclick=()=>setLevel(k);
+      const credit=document.createElement('button'); credit.innerText='Add Balance'; credit.className='btn'; credit.onclick=()=>addBalance(k);
+      d.appendChild(t); d.appendChild(lvl); d.appendChild(credit);
+      c.appendChild(d);
     });
   });
 }
+async function toggleUser(k, to){ if(!confirm('Set approved=' + to + '?')) return; await db.ref('users/'+k+'/approved').set(!!to); alert('Updated'); }
+async function setLevel(k){ const l=prompt('Enter level (1-3):','2'); if(!l) return; await db.ref('users/'+k+'/level').set(Number(l)); alert('Level set'); }
+async function addBalance(k){ const a=prompt('Amount to add (NGN):','500'); if(!a) return; const snap = await db.ref('users/'+k).once('value'); const cur = snap.exists()? (snap.val().balance||0):0; await db.ref('users/'+k+'/balance').set(cur + Number(a)); alert('Balance added'); }
 
-document.getElementById('logoutAdmin').addEventListener('click', ()=>{ localStorage.removeItem('admin'); location.reload(); });
+function loadAds(){
+  db.ref('adsPending').on('value', snap=>{
+    const c = document.getElementById('adsList'); c.innerHTML='';
+    if(!snap.exists()){ c.innerHTML='<p>No pending ads</p>'; return; }
+    snap.forEach(a=>{
+      const v = a.val(); const k = a.key;
+      const d=document.createElement('div'); d.className='item';
+      const img = v.imageUrl? `<img src="${v.imageUrl}" style="max-width:220px;margin:6px 0">` : '';
+      d.innerHTML = `<h4>${v.title} — ₦${v.amount} — ${v.status||'pending'}</h4>${img}<p>${v.body}</p><p>By: ${v.company} (${v.email})</p>`;
+      const ap=document.createElement('button'); ap.innerText='Approve'; ap.className='btn'; ap.onclick=()=>approveAd(k,v);
+      d.appendChild(ap); c.appendChild(d);
+    });
+  });
+}
+async function approveAd(k,v){ if(!confirm('Approve ad?')) return; await db.ref('ads').push({...v, approvedAt: Date.now()}); await db.ref('adsPending/'+k+'/status').set('approved'); alert('Ad approved'); }
+
+function loadWithdrawals(){
+  db.ref('withdrawals').on('value', snap=>{
+    const c = document.getElementById('withdrawList'); c.innerHTML='';
+    if(!snap.exists()){ c.innerHTML='<p>No withdrawals</p>'; return; }
+    snap.forEach(w=>{
+      const v=w.val(); const k=w.key;
+      if(v.status!=='pending') return;
+      const d=document.createElement('div'); d.className='item';
+      d.innerHTML = `<p>${v.uid} — ₦${v.amount} — ${v.account}</p>`;
+      const apro = document.createElement('button'); apro.innerText='Approve'; apro.className='btn'; apro.onclick=()=>approveWithdraw(k,v);
+      d.appendChild(apro); c.appendChild(d);
+    });
+  });
+}
+async function approveWithdraw(k,v){
+  if(!confirm('Mark approved and deduct balance?')) return;
+  await db.ref('withdrawals/'+k+'/status').set('approved');
+  const snap = await db.ref('users/'+v.uid).once('value'); const cur = snap.exists()? (snap.val().balance||0):0;
+  await db.ref('users/'+v.uid+'/balance').set(Math.max(0, cur - Number(v.amount)));
+  await db.ref('notifications/'+v.uid).push({ message:'Your withdrawal has been approved', at: Date.now() });
+  alert('Withdrawal marked approved.');
+}
+
+function loadNotifications(){
+  db.ref('notifications').limitToLast(50).on('value', snap=>{
+    const c = document.getElementById('notes'); c.innerHTML='';
+    if(!snap.exists()){ c.innerHTML='<p>No notifications</p>'; return; }
+    snap.forEach(n=>{ const d=document.createElement('div'); d.className='item'; d.innerText = JSON.stringify(n.val()); c.appendChild(d); });
+  });
+}
 </script>
-</body>
-</html>
+</body></html>
 HTML
