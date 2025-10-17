@@ -1,73 +1,57 @@
 cat > dashboard.html <<'HTML'
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Dashboard — Refer & Earn V4</title>
+<html lang="en"><head>
+  <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Dashboard — Refer & Earn</title>
   <link rel="stylesheet" href="css/style.css"/>
-  <!-- Firebase v8 -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
   <script src="https://js.paystack.co/v1/inline.js"></script>
-</head>
-<body>
-  <main class="container">
-    <header class="card">
+</head><body>
+<main class="container">
+  <header class="card"><div class="row"><h2>Dashboard</h2><button id="logout" class="btn btn-ghost">Logout</button></div></header>
+
+  <section class="card" id="profileCard">
+    <h3 id="p_name">User</h3>
+    <p>Balance: ₦<strong id="p_balance">0</strong> • Level: <span id="p_level">1</span> <span id="p_stars">⭐</span></p>
+    <p>Your referral link: <input id="p_ref" readonly style="width:60%"></p>
+    <button id="copyRef" class="btn">Copy Referral</button>
+    <div style="margin-top:10px">
+      <label>Upgrade:</label>
       <div class="row">
-        <h2>Dashboard</h2>
-        <button id="logout" class="btn btn-ghost">Logout</button>
+        <button class="btn" id="upgrade2">Level 2 — ₦3,000</button>
+        <button class="btn" id="upgrade3">Level 3 — ₦5,000</button>
       </div>
-      <p class="muted">Upload stories, like/comment/reply/share, and watch your earnings grow.</p>
-    </header>
+    </div>
+  </section>
 
-    <section class="card" id="profileCard">
-      <h3 id="p_name">User</h3>
-      <p>Balance: ₦<strong id="p_balance">0</strong> • Level: <span id="p_level">1</span> <span id="p_stars">⭐</span></p>
-      <p>Your referral link: <input id="p_ref" readonly style="width:60%"></p>
-      <button id="copyRef" class="btn">Copy Referral Link</button>
-      <div style="margin-top:12px">
-        <label><strong>Upgrade level (paid)</strong></label>
-        <div class="row" style="margin-top:8px">
-          <button class="btn" id="upgrade2">Level 2 — ₦3,000</button>
-          <button class="btn" id="upgrade3">Level 3 — ₦5,000</button>
-        </div>
-      </div>
-    </section>
+  <section class="card" id="uploadCard">
+    <h3>Create Post</h3>
+    <input id="postTitle" placeholder="Title">
+    <textarea id="postText" placeholder="Write story..."></textarea>
+    <input type="file" id="postImage" accept="image/*">
+    <button id="btnPost" class="btn">Upload Post</button>
+    <p id="postMsg" class="muted"></p>
+  </section>
 
-    <section class="card" id="uploadCard" style="display:none">
-      <h3>Create Post</h3>
-      <input id="postTitle" placeholder="Title">
-      <select id="postCategory"><option>General</option><option>Business</option><option>Fun</option><option>News</option></select>
-      <textarea id="postText" placeholder="Write story..."></textarea>
-      <input type="file" id="postImage" accept="image/*">
-      <button id="btnPost" class="btn">Upload Post</button>
-      <p id="postMsg" class="muted"></p>
-    </section>
+  <section class="card">
+    <h3>Feed</h3>
+    <div id="feed">Loading feed...</div>
+  </section>
 
-    <section class="card">
-      <h3>Feed</h3>
-      <div id="feed">Loading feed...</div>
-    </section>
-
-    <section class="card">
-      <h3>Withdraw</h3>
-      <input id="w_amount" type="number" placeholder="Amount (NGN)">
-      <input id="w_account" placeholder="Account / Bank details">
-      <button id="btnWithdraw" class="btn">Request Withdrawal</button>
-      <p class="muted">All withdrawals must be approved by admin before payout.</p>
-    </section>
-
-    <section class="card">
-      <h3>Notifications</h3>
-      <div id="notifications">Loading...</div>
-    </section>
-  </main>
+  <section class="card">
+    <h3>Withdraw</h3>
+    <input id="w_amount" type="number" placeholder="Amount (NGN)"><br>
+    <input id="w_account" placeholder="Account / Bank details"><br>
+    <button id="btnWithdraw" class="btn">Request Withdrawal</button>
+    <p class="muted">Admin approves withdrawals.</p>
+  </section>
+</main>
 
 <script>
-/* ---------- Firebase config ---------- */
+// Firebase v8 config for dashboard (we'll use v8 here to match storage API easily)
 const firebaseConfig = {
   apiKey: "AIzaSyBMV7NUVLf-9aEer5jlhqOv5u_Z7XM5oVo",
   authDomain: "refer-and-earn-74706.firebaseapp.com",
@@ -83,8 +67,9 @@ const db = firebase.database();
 const storage = firebase.storage();
 const PAYSTACK_KEY = 'pk_live_aa0529d581117f84592d7deeaaee3ebac7628a3c';
 
-/* ---------- UI refs ---------- */
-const logout = document.getElementById('logout');
+let currentUser = null;
+
+// UI refs
 const p_name = document.getElementById('p_name');
 const p_balance = document.getElementById('p_balance');
 const p_level = document.getElementById('p_level');
@@ -93,69 +78,47 @@ const p_ref = document.getElementById('p_ref');
 const copyRef = document.getElementById('copyRef');
 const uploadCard = document.getElementById('uploadCard');
 const feed = document.getElementById('feed');
-const notificationsDiv = document.getElementById('notifications');
 const postMsg = document.getElementById('postMsg');
 
-function calcStars(level){ return '⭐'.repeat(Math.max(1, level || 1)); }
-
-/* ---------- reward rules by level ---------- */
+function calcStars(level){ return '⭐'.repeat(level||1); }
 function rewardAmountsForLevel(level){
-  // returns { like, comment, share }
-  if(level === 3) return { like:20, comment:40, share:60 };
-  if(level === 2) return { like:10, comment:20, share:30 };
+  if(level==3) return { like:20, comment:40, share:60 };
+  if(level==2) return { like:10, comment:20, share:30 };
   return { like:5, comment:10, share:15 };
 }
 
-/* ---------- auth & profile ---------- */
-let currentUser = null;
-auth.onAuthStateChanged(async (user)=>{
-  if(!user) return location.href = 'index.html';
+auth.onAuthStateChanged(async user=>{
+  if(!user) return location.href='index.html';
   currentUser = user;
   const uid = user.uid;
-  // attach user profile
-  db.ref('users/' + uid).on('value', snap=>{
-    if(!snap.exists()) return;
-    const u = snap.val();
+
+  db.ref('users/'+uid).on('value', s=>{
+    if(!s.exists()) return;
+    const u = s.val();
     p_name.innerText = u.name || user.email;
     p_balance.innerText = u.balance || 0;
     p_level.innerText = u.level || 1;
     p_stars.innerText = calcStars(u.level || 1);
     p_ref.value = location.origin + '/index.html?ref=' + uid;
-    if(u.approved && u.role === 'user') uploadCard.style.display = 'block';
-    else uploadCard.style.display = 'none';
-  });
-
-  // notifications for user
-  db.ref('notifications/' + uid).on('value', s=>{
-    notificationsDiv.innerHTML = '';
-    if(!s.exists()){ notificationsDiv.innerHTML = '<p>No notifications</p>'; return; }
-    s.forEach(child => {
-      const v = child.val();
-      const p = document.createElement('p');
-      p.innerText = v.message || JSON.stringify(v);
-      notificationsDiv.appendChild(p);
-    });
   });
 
   loadFeed();
 });
 
-/* ---------- logout ---------- */
-logout.addEventListener('click', ()=> auth.signOut().then(()=> location.href='index.html') );
+// logout
+document.getElementById('logout').addEventListener('click', ()=> auth.signOut().then(()=> location.href='index.html') );
 
-/* ---------- Post upload ---------- */
+// post upload
 document.getElementById('btnPost').addEventListener('click', async ()=>{
-  if(!currentUser) return alert('Login required');
+  if(!currentUser) return alert('Login');
   const uid = currentUser.uid;
   const title = document.getElementById('postTitle').value.trim();
   const text = document.getElementById('postText').value.trim();
-  const category = document.getElementById('postCategory').value;
   const file = document.getElementById('postImage').files[0] || null;
-  if(!text && !file) return postMsg.innerText = 'Add image or text before posting.';
+  if(!text && !file) return postMsg.innerText = 'Add text or image';
   postMsg.innerText = 'Uploading...';
-
-  let imageUrl = '';
   try{
+    let imageUrl = '';
     if(file){
       const path = 'posts/' + uid + '/' + Date.now() + '_' + file.name.replace(/\s+/g,'_');
       const snap = await storage.ref(path).put(file);
@@ -164,11 +127,9 @@ document.getElementById('btnPost').addEventListener('click', async ()=>{
     const postRef = db.ref('posts').push();
     await postRef.set({
       authorUid: uid,
-      authorName: (await db.ref('users/' + uid).once('value')).val().name || currentUser.email,
-      authorEmail: currentUser.email,
+      authorName: (await db.ref('users/'+uid).once('value')).val().name || currentUser.email,
       title: title || '',
       text: text || '',
-      category: category || 'General',
       imageUrl: imageUrl || '',
       likes: 0,
       comments: {},
@@ -177,115 +138,86 @@ document.getElementById('btnPost').addEventListener('click', async ()=>{
       status: 'live'
     });
     postMsg.innerText = 'Post uploaded';
-    document.getElementById('postTitle').value='';
-    document.getElementById('postText').value='';
-    document.getElementById('postImage').value='';
-  }catch(err){
-    postMsg.innerText = 'Upload failed: ' + err.message;
-  }
+    document.getElementById('postTitle').value=''; document.getElementById('postText').value=''; document.getElementById('postImage').value='';
+  }catch(err){ postMsg.innerText = 'Post failed: ' + err.message; }
 });
 
-/* ---------- Feed + interactions (live) ---------- */
+// feed + interactions
 function loadFeed(){
   db.ref('posts').orderByChild('timestamp').on('value', snap=>{
     feed.innerHTML = '';
-    if(!snap.exists()) { feed.innerHTML = '<p>No posts yet</p>'; return; }
+    if(!snap.exists()){ feed.innerHTML = '<p>No posts yet</p>'; return; }
     const posts = snap.val();
     Object.keys(posts).sort((a,b)=> posts[b].timestamp - posts[a].timestamp).forEach(id=>{
       const p = posts[id];
-      const div = document.createElement('div');
-      div.className = 'post-card';
+      const div = document.createElement('div'); div.className='post-card';
       const imgHtml = p.imageUrl ? `<p><img src="${p.imageUrl}"></p>` : '';
       const commentsCount = p.comments ? Object.keys(p.comments).length : 0;
       div.innerHTML = `
-        <h4>${escapeHtml(p.title || '')}</h4>
-        <p>${escapeHtml(p.text || '')}</p>
-        ${imgHtml}
-        <small class="muted">By ${escapeHtml(p.authorName || p.authorEmail)} • ${escapeHtml(p.category||'')}</small>
+        <h4>${escapeHtml(p.title||'')}</h4><p>${escapeHtml(p.text||'')}</p>${imgHtml}
+        <small class="muted">By ${escapeHtml(p.authorName||p.authorEmail)}</small>
         <p>
           <button data-id="${id}" class="likeBtn">👍 <span id="lk-${id}">${p.likes||0}</span></button>
           <button data-id="${id}" class="commentToggle">💬 <span id="cm-${id}">${commentsCount}</span></button>
           <button data-id="${id}" class="shareBtn">🔁 <span id="sh-${id}">${p.shares||0}</span></button>
         </p>
-        <div class="comments" id="comments-${id}" style="display:none;padding:8px;background:#fafafa;border-radius:6px"></div>
+        <div id="comments-${id}" style="display:none;padding:8px"></div>
       `;
       feed.appendChild(div);
     });
 
-    // attach events
-    document.querySelectorAll('.likeBtn').forEach(btn => btn.onclick = ()=> handleLike(btn.dataset.id));
-    document.querySelectorAll('.commentToggle').forEach(btn => btn.onclick = ()=> toggleComments(btn.dataset.id));
-    document.querySelectorAll('.shareBtn').forEach(btn => btn.onclick = ()=> handleShare(btn.dataset.id));
+    document.querySelectorAll('.likeBtn').forEach(b=> b.onclick = ()=> handleLike(b.dataset.id));
+    document.querySelectorAll('.commentToggle').forEach(b=> b.onclick = ()=> toggleComments(b.dataset.id));
+    document.querySelectorAll('.shareBtn').forEach(b=> b.onclick = ()=> handleShare(b.dataset.id));
   });
 }
 
-/* ---------- Like ---------- */
 async function handleLike(postId){
-  if(!currentUser) return alert('Login required');
-  const pRef = db.ref('posts/' + postId);
-  const snap = await pRef.once('value');
-  if(!snap.exists()) return;
-  const p = snap.val();
-  await pRef.child('likes').set((p.likes || 0) + 1);
+  if(!currentUser) return alert('Login');
+  const pRef = db.ref('posts/'+postId);
+  const pSnap = await pRef.once('value'); if(!pSnap.exists()) return;
+  const p = pSnap.val(); await pRef.child('likes').set((p.likes||0) + 1);
 
-  // reward clicking user based on their level
-  const uSnap = await db.ref('users/' + currentUser.uid).once('value');
-  const level = uSnap.exists()? (uSnap.val().level || 1) : 1;
-  const reward = rewardAmountsForLevel(level).like;
-  const userRef = db.ref('users/' + currentUser.uid);
-  await userRef.child('balance').transaction(b => Number(b || 0) + reward);
+  // reward liker
+  const uSnap = await db.ref('users/'+currentUser.uid).once('value');
+  const lvl = uSnap.exists()? (uSnap.val().level||1):1;
+  const reward = rewardAmountsForLevel(lvl).like;
+  await db.ref('users/'+currentUser.uid+'/balance').transaction(b => Number(b||0) + reward);
 
-  // notify post owner
-  await db.ref('notifications/' + p.authorUid).push({ message: `${uSnap.val().name || currentUser.email} liked your post (+₦${reward})`, at: Date.now() });
+  // notify owner
+  await db.ref('notifications/'+p.authorUid).push({ message: `${uSnap.val().name||currentUser.email} liked your post (+₦${reward})`, at: Date.now() });
 }
 
-/* ---------- Comments & replies ---------- */
 function toggleComments(postId){
-  const box = document.getElementById('comments-' + postId);
-  if(box.style.display === 'none' || box.style.display === '') {
-    box.style.display = 'block';
-    loadComments(postId);
-  } else {
-    box.style.display = 'none';
-  }
+  const box = document.getElementById('comments-'+postId);
+  if(box.style.display === 'none' || box.style.display === ''){ box.style.display = 'block'; loadComments(postId); } else box.style.display = 'none';
 }
 
 async function loadComments(postId){
-  const commentsDiv = document.getElementById('comments-' + postId);
+  const commentsDiv = document.getElementById('comments-'+postId);
   commentsDiv.innerHTML = `<div style="margin-bottom:8px"><input id="cinput-${postId}" placeholder="Write a comment..." style="width:70%"><button id="cbtn-${postId}" class="btn">Send</button></div><div id="cshow-${postId}"></div>`;
-  document.getElementById('cbtn-' + postId).onclick = ()=> sendComment(postId);
-
-  const snap = await db.ref('posts/' + postId + '/comments').once('value');
-  const show = document.getElementById('cshow-' + postId);
-  show.innerHTML = '';
+  document.getElementById('cbtn-'+postId).onclick = ()=> sendComment(postId);
+  const snap = await db.ref('posts/'+postId+'/comments').once('value');
+  const show = document.getElementById('cshow-'+postId); show.innerHTML = '';
   if(!snap.exists()) return;
   const comments = snap.val();
-  Object.keys(comments).forEach(cid => {
+  Object.keys(comments).forEach(cid=>{
     const c = comments[cid];
-    const div = document.createElement('div');
-    div.style.marginBottom = '8px';
+    const div = document.createElement('div'); div.style.marginBottom='8px';
     div.innerHTML = `<b>${escapeHtml(c.author)}</b>: ${escapeHtml(c.text)} <small class="muted">• ${new Date(c.at).toLocaleString()}</small>
       <div id="replies-${postId}-${cid}" style="margin-left:12px;margin-top:6px"></div>
       <input id="replyinput-${postId}-${cid}" placeholder="Reply..." style="width:60%"><button class="btn" id="replybtn-${postId}-${cid}">Reply</button>
     `;
     show.appendChild(div);
-
-    // load replies
     loadReplies(postId, cid);
-
-    // reply handler
-    document.getElementById(`replybtn-${postId}-${cid}`).onclick = async () => {
-      const txt = document.getElementById(`replyinput-${postId}-${cid}`).value.trim();
-      if(!txt) return;
+    document.getElementById(`replybtn-${postId}-${cid}`).onclick = async ()=>{
+      const txt = document.getElementById(`replyinput-${postId}-${cid}`).value.trim(); if(!txt) return;
       const rRef = db.ref(`posts/${postId}/comments/${cid}/replies`).push();
-      await rRef.set({ author: (await db.ref('users/' + currentUser.uid).once('value')).val().name || currentUser.email, text: txt, at: Date.now() });
-      // reward replier
-      const uSnap = await db.ref('users/' + currentUser.uid).once('value');
-      const lvl = uSnap.exists()? (uSnap.val().level || 1):1;
+      await rRef.set({ author: (await db.ref('users/'+currentUser.uid).once('value')).val().name || currentUser.email, text: txt, at: Date.now() });
+      const uSnap = await db.ref('users/'+currentUser.uid).once('value'); const lvl = uSnap.exists()? (uSnap.val().level||1):1;
       const reward = rewardAmountsForLevel(lvl).comment;
-      await db.ref('users/' + currentUser.uid + '/balance').transaction(b => Number(b || 0) + reward);
-      // notify original commenter
-      await db.ref('notifications/' + c.uid).push({ message: `${uSnap.val().name || currentUser.email} replied to your comment (+₦${reward})`, at: Date.now() });
+      await db.ref('users/'+currentUser.uid+'/balance').transaction(b => Number(b||0) + reward);
+      await db.ref('notifications/'+c.uid).push({ message: `${uSnap.val().name||currentUser.email} replied (+₦${reward})`, at: Date.now() });
       document.getElementById(`replyinput-${postId}-${cid}`).value = '';
       loadReplies(postId, cid);
     };
@@ -293,72 +225,53 @@ async function loadComments(postId){
 }
 
 async function loadReplies(postId, cid){
-  const rDiv = document.getElementById(`replies-${postId}-${cid}`);
-  rDiv.innerHTML = '';
+  const rDiv = document.getElementById(`replies-${postId}-${cid}`); rDiv.innerHTML = '';
   const rsnap = await db.ref(`posts/${postId}/comments/${cid}/replies`).once('value');
   if(!rsnap.exists()) return;
-  rsnap.forEach(r => {
-    const val = r.val();
-    const p = document.createElement('p');
-    p.innerHTML = `<small><strong>${escapeHtml(val.author)}</strong>: ${escapeHtml(val.text)} • <span class="muted">${new Date(val.at).toLocaleString()}</span></small>`;
-    rDiv.appendChild(p);
-  });
+  rsnap.forEach(r => rDiv.innerHTML += `<p><small><strong>${escapeHtml(r.val().author)}</strong>: ${escapeHtml(r.val().text)}</small></p>`);
 }
 
 async function sendComment(postId){
-  if(!currentUser) return alert('Login required');
-  const input = document.getElementById('cinput-' + postId);
+  if(!currentUser) return alert('Login');
+  const input = document.getElementById('cinput-'+postId);
   const text = input.value.trim(); if(!text) return;
-  const authorName = (await db.ref('users/' + currentUser.uid).once('value')).val().name || currentUser.email;
-  const cRef = db.ref('posts/' + postId + '/comments').push();
+  const authorName = (await db.ref('users/'+currentUser.uid).once('value')).val().name || currentUser.email;
+  const cRef = db.ref('posts/'+postId+'/comments').push();
   await cRef.set({ uid: currentUser.uid, author: authorName, text, at: Date.now() });
-
-  // reward commenter
-  const uSnap = await db.ref('users/' + currentUser.uid).once('value');
-  const lvl = uSnap.exists()? (uSnap.val().level || 1):1;
+  const uSnap = await db.ref('users/'+currentUser.uid).once('value'); const lvl = uSnap.exists()? (uSnap.val().level||1):1;
   const reward = rewardAmountsForLevel(lvl).comment;
-  await db.ref('users/' + currentUser.uid + '/balance').transaction(b => Number(b || 0) + reward);
-
-  // notify post owner
-  const postOwner = (await db.ref('posts/' + postId + '/authorUid').once('value')).val() || (await db.ref('posts/' + postId).once('value')).val().authorUid;
-  await db.ref('notifications/' + postOwner).push({ message: `${authorName} commented on your post (+₦${reward})`, at: Date.now() });
-
-  input.value = '';
-  loadComments(postId);
+  await db.ref('users/'+currentUser.uid+'/balance').transaction(b => Number(b||0) + reward);
+  const postOwner = (await db.ref('posts/'+postId).once('value')).val().authorUid;
+  await db.ref('notifications/'+postOwner).push({ message: `${authorName} commented (+₦${reward})`, at: Date.now() });
+  input.value = ''; loadComments(postId);
 }
 
-/* ---------- Share ---------- */
 async function handleShare(postId){
-  if(!currentUser) return alert('Login required');
-  const pRef = db.ref('posts/' + postId);
-  const snap = await pRef.once('value'); if(!snap.exists()) return;
-  await pRef.child('shares').set((snap.val().shares || 0) + 1);
-  // reward sharer
-  const uSnap = await db.ref('users/' + currentUser.uid).once('value');
-  const lvl = uSnap.exists()? (uSnap.val().level || 1):1;
+  if(!currentUser) return alert('Login');
+  const pRef = db.ref('posts/'+postId); const pSnap = await pRef.once('value'); if(!pSnap.exists()) return;
+  await pRef.child('shares').set((pSnap.val().shares||0)+1);
+  const uSnap = await db.ref('users/'+currentUser.uid).once('value'); const lvl = uSnap.exists()? (uSnap.val().level||1):1;
   const reward = rewardAmountsForLevel(lvl).share;
-  await db.ref('users/' + currentUser.uid + '/balance').transaction(b => Number(b || 0) + reward);
+  await db.ref('users/'+currentUser.uid+'/balance').transaction(b => Number(b||0) + reward);
   alert(`Share recorded — you earned ₦${reward}`);
 }
 
-/* ---------- Withdraw request ---------- */
+// withdrawal
 document.getElementById('btnWithdraw').addEventListener('click', async ()=>{
-  if(!currentUser) return alert('Login required');
+  if(!currentUser) return alert('Login');
   const amt = Number(document.getElementById('w_amount').value);
   const acct = document.getElementById('w_account').value.trim();
   if(!amt || !acct) return alert('Enter amount and account');
-  // push request
   await db.ref('withdrawals').push({ uid: currentUser.uid, amount: amt, account: acct, status: 'pending', createdAt: Date.now() });
   await db.ref('notifications/admin').push({ type:'withdrawRequest', uid: currentUser.uid, amount: amt, account: acct, at: Date.now() });
   alert('Withdrawal requested — admin will approve.');
-});
+}
 
-/* ---------- Level upgrades (Paystack) ---------- */
-document.getElementById('upgrade2').addEventListener('click', ()=> startUpgrade(2, 3000));
-document.getElementById('upgrade3').addEventListener('click', ()=> startUpgrade(3, 5000));
-
+// level upgrades via Paystack
+document.getElementById('upgrade2').addEventListener('click', ()=> startUpgrade(2,3000));
+document.getElementById('upgrade3').addEventListener('click', ()=> startUpgrade(3,5000));
 function startUpgrade(level, amount){
-  if(!currentUser) return alert('Login required');
+  if(!currentUser) return alert('Login');
   const email = currentUser.email;
   const handler = PaystackPop.setup({
     key: PAYSTACK_KEY,
@@ -367,26 +280,19 @@ function startUpgrade(level, amount){
     currency: 'NGN',
     ref: 'lvl_' + currentUser.uid + '_' + Date.now(),
     callback: async function(response){
-      // On success: set level and record payment
-      await db.ref('users/' + currentUser.uid + '/level').set(level);
+      await db.ref('users/'+currentUser.uid+'/level').set(level);
       await db.ref('payments').push({ uid: currentUser.uid, level, amount, reference: response.reference, at: Date.now() });
-      await db.ref('notifications/' + currentUser.uid).push({ message: `Upgrade to Level ${level} successful`, at: Date.now() });
-      alert('Upgrade successful — Level ' + level);
+      await db.ref('notifications/'+currentUser.uid).push({ message: `Upgrade to Level ${level} successful`, at: Date.now() });
+      alert('Upgrade successful');
     },
     onClose: function(){ alert('Payment closed'); }
   });
   handler.openIframe();
 }
 
-/* ---------- Utility: escape html ---------- */
-function escapeHtml(str){
-  if(!str) return '';
-  return String(str).replace(/[&<>"']/g, function(s){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[s]; });
-}
-
-/* ---------- copy referral ---------- */
-copyRef.addEventListener('click', ()=> { p_ref.select(); document.execCommand('copy'); alert('Copied referral link'); });
+// util
+function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+copyRef.addEventListener('click', ()=> { p_ref.select(); document.execCommand('copy'); alert('Copied'); });
 </script>
-</body>
-</html>
+</body></html>
 HTML
