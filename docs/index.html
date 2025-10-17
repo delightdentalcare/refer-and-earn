@@ -1,130 +1,29 @@
-cat > index.html <<'HTML'
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Refer & Earn — Signup / Complete Registration</title>
-  <link rel="stylesheet" href="css/style.css">
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Refer & Earn - Login or Sign Up</title>
+  <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <main class="container center">
-    <div class="card auth-card">
-      <h1 class="brand">Refer & Earn</h1>
-      <p class="lead" id="lead">Signup (requests are reviewed by admin)</p>
-
-      <div id="requestArea">
-        <h3>Request an account</h3>
-        <input id="rq_name" placeholder="Full name">
-        <input id="rq_email" placeholder="Email">
-        <button id="btnRequest" class="btn">Request Signup</button>
-        <p class="muted">After approval admin will generate a signup link/token.</p>
-      </div>
-
-      <div id="completeArea" style="display:none">
-        <h3>Complete registration</h3>
-        <p id="completeInfo"></p>
-        <input id="comp_password" type="password" placeholder="Choose a password">
-        <button id="btnComplete" class="btn">Create Account</button>
-      </div>
-
-      <hr>
-      <p class="muted">Admin? <a href="admin.html">Open Admin Panel</a> • Advertiser? <a href="advertiser.html">Place an ad</a></p>
-      <p id="message"></p>
+  <div class="auth-container">
+    <h1>Refer & Earn</h1>
+    <div id="signupSection">
+      <h2>Sign Up</h2>
+      <input id="signupEmail" type="email" placeholder="Email">
+      <input id="signupPass" type="password" placeholder="Password">
+      <button id="signupBtn">Sign Up</button>
     </div>
-  </main>
+    <hr>
+    <div id="loginSection">
+      <h2>Login</h2>
+      <input id="loginEmail" type="email" placeholder="Email">
+      <input id="loginPass" type="password" placeholder="Password">
+      <button id="loginBtn">Login</button>
+    </div>
+  </div>
 
-<script>
-/* FIREBASE CONFIG */
-const firebaseConfig = {
-  apiKey: "AIzaSyBMV7NUVLf-9aEer5jlhqOv5u_Z7XM5oVo",
-  authDomain: "refer-and-earn-74706.firebaseapp.com",
-  databaseURL: "https://refer-and-earn-74706-default-rtdb.firebaseio.com",
-  projectId: "refer-and-earn-74706",
-  storageBucket: "refer-and-earn-74706.firebasestorage.app",
-  messagingSenderId: "681290792261",
-  appId: "1:681290792261:web:982ae0c9f81b7291bc922c",
-  measurementId: "G-GYJ5D768D6"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-const auth = firebase.auth();
-
-// Helper
-const $ = id => document.getElementById(id);
-const showMsg = (t) => { $('message').innerText = t; setTimeout(()=> $('message').innerText='', 5000); };
-
-// Read URL token (if admin approved and created an approvedSignups token)
-const url = new URL(location.href);
-const token = url.searchParams.get('token');
-
-// 1) Signup request
-$('btnRequest').addEventListener('click', async ()=>{
-  const name = $('rq_name').value.trim();
-  const email = $('rq_email').value.trim().toLowerCase();
-  if(!name || !email) return showMsg('Fill name and email');
-
-  // create request
-  const reqRef = db.ref('signupRequests').push();
-  await reqRef.set({ name, email, status: 'pending', createdAt: Date.now() });
-  await db.ref('notifications/signupRequests').push({ reqKey: reqRef.key, name, email, createdAt: Date.now() });
-
-  $('rq_name').value=''; $('rq_email').value='';
-  showMsg('Signup request submitted — admin will review it.');
-});
-
-// 2) If token present, show complete registration UI
-async function checkTokenFlow(){
-  if(!token) return;
-  // validate token
-  const snap = await db.ref('approvedSignups/'+token).once('value');
-  if(!snap.exists()){
-    $('lead').innerText = 'Invalid or expired signup token.';
-    return;
-  }
-  const data = snap.val();
-  if(data.expiresAt && Date.now() > data.expiresAt) {
-    $('lead').innerText = 'This signup token expired.';
-    return;
-  }
-  // show complete area
-  $('requestArea').style.display='none';
-  $('completeArea').style.display='block';
-  $('completeInfo').innerText = `Complete registration for ${data.email} (Name: ${data.name})`;
-}
-
-// 3) Complete registration: user sets password -> create Firebase Auth user
-$('btnComplete').addEventListener('click', async ()=>{
-  const pw = $('comp_password').value;
-  if(!pw || pw.length < 6) return showMsg('Password must be ≥6 chars');
-  // read token data again
-  const snap = await db.ref('approvedSignups/'+token).once('value');
-  if(!snap.exists()) return showMsg('Token invalid or used.');
-  const info = snap.val();
-  try {
-    const res = await auth.createUserWithEmailAndPassword(info.email, pw);
-    const uid = res.user.uid;
-    // create user profile
-    await db.ref('users/'+uid).set({
-      uid, name: info.name, email: info.email, balance: 0, referrals: 0, createdAt: Date.now()
-    });
-    // delete token so it cannot be reused
-    await db.ref('approvedSignups/'+token).remove();
-    // mark original signupRequest as completed if exists
-    if(info.requestKey) await db.ref('signupRequests/'+info.requestKey+'/status').set('completed');
-    showMsg('Account created — redirecting to dashboard');
-    setTimeout(()=> location.replace('./dashboard.html'), 1200);
-  } catch(err){
-    showMsg(err.message);
-  }
-});
-
-// Run token check on load
-checkTokenFlow();
-</script>
+  <script type="module" src="js/auth.js"></script>
 </body>
 </html>
-HTML
