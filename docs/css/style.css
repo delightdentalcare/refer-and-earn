@@ -1,15 +1,277 @@
-:root{--bg:#f6f7fb;--card:#fff;--accent:#1f6feb}
-*{box-sizing:border-box;font-family:system-ui,Segoe UI,Roboto,Arial}
-body{margin:0;background:var(--bg);color:#111}
-.container{max-width:900px;margin:18px auto;padding:12px}
-.card{background:var(--card);padding:16px;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,.06);margin-bottom:12px}
-.topbar{display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--card)}
-input,textarea,select{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px solid #ddd}
-button{padding:10px 14px;border:0;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer}
-.splash{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:28px;background:var(--accent);color:#fff;z-index:9999}
-.small{font-size:12px;color:#666}
-.share-buttons button{margin-right:6px}
-#ads-list img{max-width:100%;border-radius:8px}
-.stories-grid{display:flex;gap:8px;flex-wrap:wrap}
-.story-card{width:48%;padding:8px}
-@media(min-width:700px){.story-card{width:30%}}
+cat > dashboard.html <<'HTML'
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Dashboard — Refer & Earn</title>
+<link rel="stylesheet" href="css/style.css"/>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+<script src="https://js.paystack.co/v1/inline.js"></script>
+</head><body>
+<main class="container">
+  <header class="card">
+    <div class="row"><h2>Dashboard</h2><button id="logout" class="btn btn-ghost">Logout</button></div>
+    <p class="muted">Upload, like, comment, share and earn. Upgrade levels to increase earnings.</p>
+  </header>
+
+  <section class="card" id="profileCard">
+    <h3 id="p_name">User</h3>
+    <p>Balance: ₦<strong id="p_balance">0</strong> • Level: <span id="p_level">1</span> <span id="p_stars">⭐</span></p>
+    <p>Your referral link: <input id="p_ref" readonly style="width:60%"></p>
+    <button id="copyRef" class="btn">Copy Referral Link</button>
+    <div style="margin-top:10px">
+      <label>Upgrade level:</label>
+      <div class="row">
+        <button class="btn" id="upgrade2">Upgrade to Level 2 (₦3,000)</button>
+        <button class="btn" id="upgrade3">Upgrade to Level 3 (₦5,000)</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="uploadCard" style="display:none">
+    <h3>Create Post</h3>
+    <input id="postTitle" placeholder="Title">
+    <select id="postCategory"><option>General</option><option>Business</option><option>Fun</option><option>News</option></select>
+    <textarea id="postText" placeholder="Write story..."></textarea>
+    <input type="file" id="postImage" accept="image/*">
+    <button id="btnPost" class="btn">Upload Post</button>
+  </section>
+
+  <section class="card">
+    <h3>Feed</h3>
+    <div id="feed">Loading feed...</div>
+  </section>
+
+  <section class="card">
+    <h3>Withdraw</h3>
+    <input id="w_amount" type="number" placeholder="Amount (NGN)">
+    <input id="w_account" placeholder="Account / Bank details">
+    <button id="btnWithdraw" class="btn">Request Withdrawal</button>
+    <p class="muted">All withdrawals must be approved by admin before payout.</p>
+  </section>
+
+  <section class="card">
+    <h3>Notifications</h3>
+    <div id="notifications">Loading...</div>
+  </section>
+</main>
+
+<script>
+// Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyBMV7NUVLf-9aEer5jlhqOv5u_Z7XM5oVo",
+  authDomain: "refer-and-earn-74706.firebaseapp.com",
+  databaseURL: "https://refer-and-earn-74706-default-rtdb.firebaseio.com",
+  projectId: "refer-and-earn-74706",
+  storageBucket: "refer-and-earn-74706.firebasestorage.app",
+  messagingSenderId: "681290792261",
+  appId: "1:681290792261:web:982ae0c9f81b7291bc922c"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+const storage = firebase.storage();
+const PAYSTACK_KEY = 'pk_live_aa0529d581117f84592d7deeaaee3ebac7628a3c';
+
+const logout = document.getElementById('logout');
+const p_name = document.getElementById('p_name');
+const p_balance = document.getElementById('p_balance');
+const p_level = document.getElementById('p_level');
+const p_stars = document.getElementById('p_stars');
+const p_ref = document.getElementById('p_ref');
+const copyRef = document.getElementById('copyRef');
+const uploadCard = document.getElementById('uploadCard');
+const feed = document.getElementById('feed');
+const notificationsDiv = document.getElementById('notifications');
+
+function calcLevel(bal){
+  if(bal>=5000) return 3;
+  if(bal>=3000) return 2;
+  return 1;
+}
+
+auth.onAuthStateChanged(async user=>{
+  if(!user) return location.href='index.html';
+  const uid = user.uid;
+
+  // profile watcher
+  db.ref('users/'+uid).on('value', s=>{
+    if(!s.exists()) return;
+    const u = s.val();
+    p_name.innerText = u.name || u.email;
+    p_balance.innerText = u.balance || 0;
+    const level = u.level || calcLevel(u.balance||0);
+    p_level.innerText = level;
+    p_stars.innerText = '⭐'.repeat(level);
+    p_ref.value = location.origin + '/index.html?ref=' + uid;
+    if(u.approved && u.role==='user') uploadCard.style.display = 'block'; else uploadCard.style.display='none';
+  });
+
+  // feed
+  db.ref('posts').orderByChild('timestamp').on('value', snap=>{
+    feed.innerHTML = '';
+    if(!snap.exists()){ feed.innerHTML = '<p>No posts yet</p>'; return; }
+    const posts = snap.val();
+    Object.keys(posts).sort((a,b)=> posts[b].timestamp - posts[a].timestamp).forEach(k=>{
+      const p = posts[k];
+      const div = document.createElement('div'); div.className='post-card';
+      const imgHtml = p.imageUrl ? `<p><img src="${p.imageUrl}"></p>` : '';
+      div.innerHTML = `<h4>${p.title || ''}</h4><p>${p.text||''}</p>${imgHtml}<p class="muted">By ${p.authorName||p.authorEmail} • ${p.category||''}</p>
+        <p>
+          <button onclick="likePost('${k}')">👍 <span id="lk${k}">${p.likes||0}</span></button>
+          <button onclick="toggleComments('${k}')">💬 <span id="cm${k}">${p.comments? Object.keys(p.comments).length:0}</span></button>
+          <button onclick="sharePost('${k}')">🔁 <span id="sh${k}">${p.shares||0}</span></button>
+        </p>
+        <div id="comments-${k}" style="display:none;padding:6px;background:#fafafa;border-radius:6px"></div>
+      `;
+      feed.appendChild(div);
+    });
+  });
+
+  // notifications
+  db.ref('notifications/'+uid).on('value', sn=>{
+    notificationsDiv.innerHTML='';
+    if(!sn.exists()) { notificationsDiv.innerHTML = '<p>No notifications</p>'; return; }
+    sn.forEach(n=>{
+      const v = n.val(); const p = document.createElement('p'); p.innerText = `${v.message || JSON.stringify(v)}`; notificationsDiv.appendChild(p);
+    });
+  });
+
+});
+
+// logout
+logout.addEventListener('click', ()=> auth.signOut().then(()=> location.href='index.html') );
+
+// post upload
+document.getElementById('btnPost').addEventListener('click', async ()=>{
+  const user = auth.currentUser; if(!user) return alert('login');
+  const uid = user.uid;
+  const title = document.getElementById('postTitle').value.trim();
+  const text = document.getElementById('postText').value.trim();
+  const category = document.getElementById('postCategory').value;
+  const file = document.getElementById('postImage').files[0] || null;
+  if(!text) return alert('Write something');
+
+  let imageUrl = '';
+  if(file){
+    const path = 'posts/' + uid + '/' + Date.now() + '_' + file.name.replace(/\s+/g,'_');
+    const snap = await storage.ref(path).put(file);
+    imageUrl = await snap.ref.getDownloadURL();
+  }
+  const postRef = db.ref('posts').push();
+  await postRef.set({ authorUid: uid, authorName: (await db.ref('users/'+uid).once('value')).val().name || user.email, authorEmail: user.email, title, text, category, imageUrl, likes:0, comments:{}, shares:0, timestamp: Date.now(), status:'live' });
+  alert('Post uploaded');
+  document.getElementById('postTitle').value=''; document.getElementById('postText').value=''; document.getElementById('postImage').value='';
+});
+
+// interactions
+window.likePost = async function(postId){
+  const user = auth.currentUser; if(!user) return alert('login');
+  const pRef = db.ref('posts/'+postId);
+  const pSnap = await pRef.once('value'); if(!pSnap.exists()) return;
+  const p = pSnap.val();
+  await pRef.child('likes').set((p.likes||0) + 1);
+  // reward the actor (user who clicked)
+  const uRef = db.ref('users/'+user.uid);
+  const uSnap = await uRef.once('value'); const ub = uSnap.exists()? (uSnap.val().balance||0):0;
+  // reward amount depends on level
+  const lvl = uSnap.exists()? (uSnap.val().level || 1) : 1;
+  let reward = 5;
+  if(lvl==2) reward = 10;
+  if(lvl==3) reward = 20;
+  await uRef.child('balance').set(ub + reward);
+  // notify post owner
+  const ownerRef = db.ref('notifications/'+p.authorUid);
+  const likerName = (await db.ref('users/'+user.uid).once('value')).val().name || user.email;
+  await ownerRef.push({ message: `${likerName} liked your post (+₦${reward})`, at: Date.now() });
+};
+
+window.toggleComments = function(postId){
+  const box = document.getElementById('comments-'+postId);
+  if(box.style.display === 'none'){ box.style.display='block'; loadComments(postId); } else box.style.display='none';
+};
+async function loadComments(postId){
+  const commentsDiv = document.getElementById('comments-'+postId);
+  commentsDiv.innerHTML = `<input id="cinput-${postId}" placeholder="Write a comment"><button onclick="sendComment('${postId}')">Send</button><div id="cshow-${postId}"></div>`;
+  const snap = await db.ref('posts/'+postId+'/comments').once('value');
+  if(snap.exists()){
+    const vals = snap.val();
+    const listDiv = document.getElementById('cshow-'+postId);
+    listDiv.innerHTML = '';
+    Object.values(vals).forEach(c=> listDiv.innerHTML += `<p><strong>${c.author}</strong>: ${c.text}</p>`);
+  }
+}
+window.sendComment = async function(postId){
+  const user = auth.currentUser; if(!user) return alert('login');
+  const input = document.getElementById('cinput-'+postId); const text = input.value.trim(); if(!text) return;
+  const cRef = db.ref('posts/'+postId+'/comments').push();
+  const userSnap = await db.ref('users/'+user.uid).once('value');
+  const author = userSnap.exists()? userSnap.val().name || user.email : user.email;
+  await cRef.set({ author, text, at: Date.now() });
+  // reward commenter
+  const ub = userSnap.exists()? (userSnap.val().balance||0):0; const lvl = userSnap.exists()? (userSnap.val().level ||1):1;
+  let reward = 10; if(lvl==2) reward = 20; if(lvl==3) reward = 40;
+  await db.ref('users/'+user.uid+'/balance').set(ub + reward);
+  // notify post owner
+  const post = (await db.ref('posts/'+postId).once('value')).val();
+  await db.ref('notifications/'+post.authorUid).push({ message: `${author} commented on your post (+₦${reward})`, at: Date.now() });
+  input.value='';
+  loadComments(postId);
+};
+
+// share
+window.sharePost = async function(postId){
+  const user = auth.currentUser; if(!user) return alert('login');
+  const pRef = db.ref('posts/'+postId);
+  const pSnap = await pRef.once('value'); if(!pSnap.exists()) return;
+  await pRef.child('shares').set((pSnap.val().shares||0)+1);
+  const uSnap = await db.ref('users/'+user.uid).once('value'); const ub = uSnap.exists()? (uSnap.val().balance||0):0; const lvl = uSnap.exists()? (uSnap.val().level||1):1;
+  let reward = 15; if(lvl==2) reward = 30; if(lvl==3) reward = 60;
+  await db.ref('users/'+user.uid+'/balance').set(ub + reward);
+  alert(`Share recorded — you earned ₦${reward}`);
+};
+
+// withdraw request
+document.getElementById('btnWithdraw').addEventListener('click', async ()=>{
+  const user = auth.currentUser; if(!user) return alert('login');
+  const amt = Number(document.getElementById('w_amount').value);
+  const acct = document.getElementById('w_account').value.trim();
+  if(!amt || !acct) return alert('Enter amount and account');
+  await db.ref('withdrawals').push({ uid: user.uid, amount: amt, account: acct, status: 'pending', createdAt: Date.now() });
+  await db.ref('notifications/admin').push({ type:'withdrawRequest', uid: user.uid, amount: amt, account: acct, at: Date.now() });
+  alert('Withdrawal requested — admin will approve.');
+});
+
+// copy referral
+copyRef.addEventListener('click', ()=>{ p_ref.select(); document.execCommand('copy'); alert('Copied referral link'); });
+
+// Level upgrades (Paystack)
+document.getElementById('upgrade2').addEventListener('click', ()=> startUpgrade(2,3000));
+document.getElementById('upgrade3').addEventListener('click', ()=> startUpgrade(3,5000));
+
+async function startUpgrade(level, amount){
+  const user = auth.currentUser; if(!user) return alert('login');
+  const email = user.email;
+  const handler = PaystackPop.setup({
+    key: PAYSTACK_KEY,
+    email,
+    amount: amount * 100,
+    currency: 'NGN',
+    ref: 'lvl_' + user.uid + '_' + Date.now(),
+    callback: async function(response){
+      // On success, set level
+      await db.ref('users/'+user.uid+'/level').set(level);
+      await db.ref('users/'+user.uid+'/balance').transaction(b => Number(b||0)); // no change, but keep record
+      await db.ref('payments').push({ uid: user.uid, level, amount, reference: response.reference, at: Date.now() });
+      await db.ref('notifications/'+user.uid).push({ message: `Upgrade to Level ${level} successful`, at: Date.now() });
+      alert('Upgrade successful');
+    },
+    onClose: function(){ alert('Payment closed'); }
+  });
+  handler.openIframe();
+}
+</script>
+</body></html>
+HTML
