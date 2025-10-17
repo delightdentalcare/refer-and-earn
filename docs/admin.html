@@ -1,62 +1,58 @@
 cat > admin.html <<'HTML'
 <!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Admin — Refer & Earn</title>
-<link rel="stylesheet" href="css/style.css"/>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
-</head><body>
-<main class="container">
-  <header class="card"><h2>Admin Panel</h2></header>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Admin — Refer & Earn V4</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body>
+  <main class="container">
+    <header class="card"><h2>Admin Panel</h2></header>
 
-  <section class="card">
-    <h3>Quick Login</h3>
-    <input id="a_user" placeholder="username">
-    <input id="a_pass" type="password" placeholder="password">
-    <button id="a_login" class="btn">Login</button>
-    <p class="muted">Username: <strong>batir</strong> Password: <strong>mubsbatir</strong></p>
-  </section>
+    <section class="card">
+      <h3>Login</h3>
+      <input id="adminUser" placeholder="username">
+      <input id="adminPass" type="password" placeholder="password">
+      <button id="adminLogin" class="btn">Login</button>
+      <p class="muted">Username: <strong>batir</strong> Password: <strong>mubsbatir</strong></p>
+    </section>
 
-  <section id="adminArea" style="display:none">
-    <div class="card">
-      <h3>Analytics</h3>
-      <p>Total users: <strong id="totalUsers">0</strong></p>
-      <p>Pending signups: <strong id="pendingSignups">0</strong></p>
-      <p>Pending ads: <strong id="pendingAds">0</strong></p>
-      <p>Pending withdrawals: <strong id="pendingWithdrawals">0</strong></p>
-    </div>
+    <section id="adminArea" style="display:none">
+      <div class="card">
+        <h3>Stats</h3>
+        <p>Total users: <strong id="totalUsers">0</strong></p>
+        <p>Pending signups: <strong id="pendingSignups">0</strong></p>
+        <p>Total earnings (sum): ₦<strong id="totalEarnings">0</strong></p>
+        <p>Pending withdrawals: <strong id="pendingWithdrawals">0</strong></p>
+      </div>
 
-    <div class="card">
-      <h3>Pending Signup Requests</h3>
-      <div id="signupRequests">Loading...</div>
-    </div>
+      <div class="card">
+        <h3>Pending Signups</h3>
+        <div id="pendingList">Loading...</div>
+      </div>
 
-    <div class="card">
-      <h3>Users</h3>
-      <div id="usersList">Loading...</div>
-    </div>
+      <div class="card">
+        <h3>All Users (click to view)</h3>
+        <div id="usersList">Loading...</div>
+      </div>
 
-    <div class="card">
-      <h3>Pending Ads</h3>
-      <div id="adsList">Loading...</div>
-    </div>
+      <div class="card">
+        <h3>All Posts</h3>
+        <div id="postsList">Loading...</div>
+      </div>
 
-    <div class="card">
-      <h3>Withdrawals</h3>
-      <div id="withdrawList">Loading...</div>
-    </div>
-
-    <div class="card">
-      <h3>Notifications</h3>
-      <div id="notes">Loading...</div>
-    </div>
-
-  </section>
-</main>
+      <div class="card">
+        <h3>Withdrawals</h3>
+        <div id="withdrawList">Loading...</div>
+      </div>
+    </section>
+  </main>
 
 <script>
+/* ---------- Firebase ---------- */
 const firebaseConfig = {
   apiKey: "AIzaSyBMV7NUVLf-9aEer5jlhqOv5u_Z7XM5oVo",
   authDomain: "refer-and-earn-74706.firebaseapp.com",
@@ -69,121 +65,192 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const ADMIN_USER = 'batir', ADMIN_PASS='mubsbatir';
-document.getElementById('a_login').addEventListener('click', ()=> {
-  const u = document.getElementById('a_user').value.trim(), p = document.getElementById('a_pass').value.trim();
-  if(u===ADMIN_USER && p===ADMIN_PASS){ document.getElementById('adminArea').style.display='block'; document.querySelector('.card').style.display='none'; init(); } else alert('Invalid admin credentials');
+/* ---------- Admin login (client-side quick) ---------- */
+const ADMIN_USER = 'batir', ADMIN_PASS = 'mubsbatir';
+document.getElementById('adminLogin').addEventListener('click', ()=>{
+  const u = document.getElementById('adminUser').value.trim();
+  const p = document.getElementById('adminPass').value.trim();
+  if(u === ADMIN_USER && p === ADMIN_PASS){
+    document.getElementById('adminArea').style.display = 'block';
+    document.querySelector('.card').style.display = 'none';
+    init();
+  } else {
+    alert('Invalid admin credentials');
+  }
 });
 
+/* ---------- Init admin view ---------- */
 async function init(){
-  loadAnalytics();
-  loadSignupRequests();
+  loadStats();
+  loadPendingSignups();
   loadUsers();
-  loadAds();
+  loadPosts();
   loadWithdrawals();
-  loadNotifications();
+  // watch totals live
+  db.ref('users').on('value', loadStats);
 }
 
-async function loadAnalytics(){
-  const users = await db.ref('users').once('value'); document.getElementById('totalUsers').innerText = users.exists()? users.numChildren():0;
-  const signup = await db.ref('signupRequests').orderByChild('status').equalTo('pending').once('value'); document.getElementById('pendingSignups').innerText = signup.exists()? signup.numChildren():0;
-  const ads = await db.ref('adsPending').orderByChild('status').equalTo('paid').once('value'); document.getElementById('pendingAds').innerText = ads.exists()? ads.numChildren():0;
-  const wd = await db.ref('withdrawals').orderByChild('status').equalTo('pending').once('value'); document.getElementById('pendingWithdrawals').innerText = wd.exists()? wd.numChildren():0;
+/* ---------- Stats ---------- */
+async function loadStats(){
+  const usersSnap = await db.ref('users').once('value');
+  const usersCount = usersSnap.exists() ? usersSnap.numChildren() : 0;
+  document.getElementById('totalUsers').innerText = usersCount;
+
+  // pending signups
+  const pendingSnap = await db.ref('signupRequests').orderByChild('status').equalTo('pending').once('value');
+  document.getElementById('pendingSignups').innerText = pendingSnap.exists() ? pendingSnap.numChildren() : 0;
+
+  // total earnings sum (iterate users)
+  let total = 0;
+  if(usersSnap.exists()){
+    usersSnap.forEach(u => { const val = u.val(); total += Number(val.balance || 0); });
+  }
+  document.getElementById('totalEarnings').innerText = total;
+
+  // pending withdrawals count
+  const wdSnap = await db.ref('withdrawals').orderByChild('status').equalTo('pending').once('value');
+  document.getElementById('pendingWithdrawals').innerText = wdSnap.exists() ? wdSnap.numChildren() : 0;
 }
 
-function loadSignupRequests(){
-  db.ref('signupRequests').on('value', snap=>{
-    const c = document.getElementById('signupRequests'); c.innerHTML='';
-    if(!snap.exists()){ c.innerHTML='<p>No signup requests</p>'; return; }
-    snap.forEach(s=>{
-      const r=s.val(); const k=s.key;
-      const d=document.createElement('div'); d.className='item';
-      d.innerHTML = `<p>${r.name||r.email} — ${r.role} — <em>${r.status}</em></p>`;
-      if(r.status==='pending'){
-        const a=document.createElement('button'); a.innerText='Approve'; a.className='btn'; a.onclick=()=>approveSignup(k,r);
-        const dny=document.createElement('button'); dny.innerText='Deny'; dny.className='btn btn-ghost'; dny.onclick=()=>denySignup(k);
-        d.appendChild(a); d.appendChild(dny);
+/* ---------- Pending signups ---------- */
+function loadPendingSignups(){
+  db.ref('signupRequests').on('value', snap => {
+    const c = document.getElementById('pendingList'); c.innerHTML = '';
+    if(!snap.exists()){ c.innerHTML = '<p>No pending signups</p>'; return; }
+    snap.forEach(s => {
+      const v = s.val(); const k = s.key;
+      const d = document.createElement('div'); d.className = 'item';
+      d.innerHTML = `<p><strong>${v.name||v.email}</strong> — ${v.role} — <em>${v.status}</em></p>`;
+      if(v.status === 'pending'){
+        const a = document.createElement('button'); a.innerText = 'Approve'; a.className='btn';
+        a.onclick = ()=> approveSignup(k, v);
+        const den = document.createElement('button'); den.innerText='Deny'; den.className='btn btn-ghost';
+        den.onclick = ()=> denySignup(k);
+        d.appendChild(a); d.appendChild(den);
       }
       c.appendChild(d);
     });
   });
 }
 
-async function approveSignup(key, r){
-  if(!confirm('Approve?')) return;
-  await db.ref('users/'+r.uid+'/approved').set(true);
-  await db.ref('signupRequests/'+key+'/status').set('approved');
-  await db.ref('notifications/'+r.uid).push({ message:'Your account has been approved', at: Date.now() });
-  alert('Approved.');
+async function approveSignup(key, v){
+  if(!confirm('Approve this signup?')) return;
+  // set users/{uid}/approved = true
+  await db.ref('users/' + v.uid + '/approved').set(true);
+  await db.ref('signupRequests/' + key + '/status').set('approved');
+  // credit referrer if any
+  const userSnap = await db.ref('users/' + v.uid).once('value');
+  if(userSnap.exists()){
+    const refBy = userSnap.val().refBy;
+    if(refBy){
+      const refSnap = await db.ref('users/' + refBy).once('value');
+      if(refSnap.exists()){
+        await db.ref('users/' + refBy + '/balance').transaction(b => Number(b || 0) + 50);
+        await db.ref('notifications/' + refBy).push({ message: `You earned ₦50 for referring ${v.email}`, at: Date.now() });
+      }
+    }
+  }
+  await db.ref('notifications/' + v.uid).push({ message: 'Your account is approved by admin', at: Date.now() });
+  alert('Approved and referrer credited if any.');
 }
-async function denySignup(key){ if(!confirm('Deny?')) return; await db.ref('signupRequests/'+key+'/status').set('denied'); alert('Denied.'); }
 
+/* ---------- Deny ---------- */
+async function denySignup(key){
+  if(!confirm('Deny this signup?')) return;
+  await db.ref('signupRequests/' + key + '/status').set('denied');
+  alert('Denied.');
+}
+
+/* ---------- Users list ---------- */
 function loadUsers(){
-  db.ref('users').on('value', snap=>{
-    const c = document.getElementById('usersList'); c.innerHTML='';
-    if(!snap.exists()){ c.innerHTML='<p>No users</p>'; return; }
-    snap.forEach(u=>{
-      const v=u.val(); const k=u.key;
-      const d=document.createElement('div'); d.className='item';
-      d.innerHTML = `<p><strong>${v.name||v.email}</strong> — ${v.role||'user'} — ₦${v.balance||0} — Approved:${v.approved? 'YES':'NO'}</p>`;
-      const t=document.createElement('button'); t.innerText = v.approved? 'Disable':'Enable'; t.className='btn'; t.onclick=()=>toggleUser(k, !v.approved);
-      const lvl=document.createElement('button'); lvl.innerText='Set Level'; lvl.className='btn btn-ghost'; lvl.onclick=()=>setLevel(k);
-      const credit=document.createElement('button'); credit.innerText='Add Balance'; credit.className='btn'; credit.onclick=()=>addBalance(k);
-      d.appendChild(t); d.appendChild(lvl); d.appendChild(credit);
+  db.ref('users').on('value', snap => {
+    const c = document.getElementById('usersList'); c.innerHTML = '';
+    if(!snap.exists()){ c.innerHTML = '<p>No users yet</p>'; return; }
+    snap.forEach(u => {
+      const v = u.val(); const k = u.key;
+      const d = document.createElement('div'); d.className='item';
+      d.innerHTML = `<p><strong>${v.name||v.email}</strong> — ${v.role || 'user'} — ₦${v.balance || 0} — Approved: ${v.approved ? 'YES':'NO'}</p>`;
+      const tog = document.createElement('button'); tog.innerText = v.approved? 'Disable':'Enable'; tog.className='btn';
+      tog.onclick = ()=> toggleUser(k, !v.approved);
+      const lvl = document.createElement('button'); lvl.innerText='Set Level'; lvl.className='btn btn-ghost';
+      lvl.onclick = ()=> setLevel(k);
+      const credit = document.createElement('button'); credit.innerText='Add Balance'; credit.className='btn';
+      credit.onclick = ()=> addBalance(k);
+      d.appendChild(tog); d.appendChild(lvl); d.appendChild(credit);
       c.appendChild(d);
     });
   });
 }
-async function toggleUser(k, to){ if(!confirm('Set approved=' + to + '?')) return; await db.ref('users/'+k+'/approved').set(!!to); alert('Updated'); }
-async function setLevel(k){ const l=prompt('Enter level (1-3):','2'); if(!l) return; await db.ref('users/'+k+'/level').set(Number(l)); alert('Level set'); }
-async function addBalance(k){ const a=prompt('Amount to add (NGN):','500'); if(!a) return; const snap = await db.ref('users/'+k).once('value'); const cur = snap.exists()? (snap.val().balance||0):0; await db.ref('users/'+k+'/balance').set(cur + Number(a)); alert('Balance added'); }
 
-function loadAds(){
-  db.ref('adsPending').on('value', snap=>{
-    const c = document.getElementById('adsList'); c.innerHTML='';
-    if(!snap.exists()){ c.innerHTML='<p>No pending ads</p>'; return; }
-    snap.forEach(a=>{
-      const v = a.val(); const k = a.key;
-      const d=document.createElement('div'); d.className='item';
-      const img = v.imageUrl? `<img src="${v.imageUrl}" style="max-width:220px;margin:6px 0">` : '';
-      d.innerHTML = `<h4>${v.title} — ₦${v.amount} — ${v.status||'pending'}</h4>${img}<p>${v.body}</p><p>By: ${v.company} (${v.email})</p>`;
-      const ap=document.createElement('button'); ap.innerText='Approve'; ap.className='btn'; ap.onclick=()=>approveAd(k,v);
-      d.appendChild(ap); c.appendChild(d);
+async function toggleUser(uid, to){
+  if(!confirm('Set approved = ' + to + ' ?')) return;
+  await db.ref('users/' + uid + '/approved').set(!!to);
+  await db.ref('notifications/' + uid).push({ message: `Your account was ${to ? 'approved' : 'disabled'} by admin`, at: Date.now() });
+  alert('Updated.');
+}
+
+async function setLevel(uid){
+  const l = prompt('Enter level (1-3):','2'); if(!l) return;
+  await db.ref('users/' + uid + '/level').set(Number(l));
+  alert('Level set.');
+}
+async function addBalance(uid){
+  const a = prompt('Amount to add (NGN):','500'); if(!a) return;
+  const snap = await db.ref('users/' + uid).once('value'); const cur = snap.exists()? (snap.val().balance || 0):0;
+  await db.ref('users/' + uid + '/balance').set(Number(cur) + Number(a));
+  alert('Balance added.');
+}
+
+/* ---------- Posts ---------- */
+function loadPosts(){
+  db.ref('posts').on('value', snap => {
+    const c = document.getElementById('postsList'); c.innerHTML = '';
+    if(!snap.exists()){ c.innerHTML = '<p>No posts</p>'; return; }
+    snap.forEach(p => {
+      const v = p.val(); const k = p.key;
+      const d = document.createElement('div'); d.className='item';
+      d.innerHTML = `<h4>${v.title || '(no title)'} — by ${v.authorName || v.authorEmail}</h4>
+        <p>${v.text || ''}</p>
+        <p>Likes: ${v.likes || 0} • Comments: ${v.comments ? Object.keys(v.comments).length : 0} • Shares: ${v.shares || 0}</p>`;
+      c.appendChild(d);
     });
   });
 }
-async function approveAd(k,v){ if(!confirm('Approve ad?')) return; await db.ref('ads').push({...v, approvedAt: Date.now()}); await db.ref('adsPending/'+k+'/status').set('approved'); alert('Ad approved'); }
 
+/* ---------- Withdrawals ---------- */
 function loadWithdrawals(){
-  db.ref('withdrawals').on('value', snap=>{
-    const c = document.getElementById('withdrawList'); c.innerHTML='';
-    if(!snap.exists()){ c.innerHTML='<p>No withdrawals</p>'; return; }
-    snap.forEach(w=>{
-      const v=w.val(); const k=w.key;
-      if(v.status!=='pending') return;
-      const d=document.createElement('div'); d.className='item';
+  db.ref('withdrawals').on('value', snap => {
+    const c = document.getElementById('withdrawList'); c.innerHTML = '';
+    if(!snap.exists()){ c.innerHTML = '<p>No withdrawals</p>'; return; }
+    snap.forEach(w => {
+      const v = w.val(); const k = w.key;
+      if(v.status !== 'pending') return;
+      const d = document.createElement('div'); d.className='item';
       d.innerHTML = `<p>${v.uid} — ₦${v.amount} — ${v.account}</p>`;
-      const apro = document.createElement('button'); apro.innerText='Approve'; apro.className='btn'; apro.onclick=()=>approveWithdraw(k,v);
-      d.appendChild(apro); c.appendChild(d);
+      const approve = document.createElement('button'); approve.innerText = 'Approve'; approve.className='btn';
+      approve.onclick = ()=> approveWithdraw(k, v);
+      d.appendChild(approve); c.appendChild(d);
     });
   });
 }
-async function approveWithdraw(k,v){
-  if(!confirm('Mark approved and deduct balance?')) return;
-  await db.ref('withdrawals/'+k+'/status').set('approved');
-  const snap = await db.ref('users/'+v.uid).once('value'); const cur = snap.exists()? (snap.val().balance||0):0;
-  await db.ref('users/'+v.uid+'/balance').set(Math.max(0, cur - Number(v.amount)));
-  await db.ref('notifications/'+v.uid).push({ message:'Your withdrawal has been approved', at: Date.now() });
-  alert('Withdrawal marked approved.');
+
+async function approveWithdraw(key, rec){
+  if(!confirm('Approve and deduct balance?')) return;
+  await db.ref('withdrawals/' + key + '/status').set('approved');
+  const uSnap = await db.ref('users/' + rec.uid).once('value');
+  const cur = uSnap.exists()? (uSnap.val().balance || 0):0;
+  await db.ref('users/' + rec.uid + '/balance').set(Math.max(0, Number(cur) - Number(rec.amount)));
+  await db.ref('notifications/' + rec.uid).push({ message: `Your withdrawal of ₦${rec.amount} was approved`, at: Date.now() });
+  alert('Withdrawal approved (marked). Please process payout via your payout system.');
 }
 
-function loadNotifications(){
-  db.ref('notifications').limitToLast(50).on('value', snap=>{
-    const c = document.getElementById('notes'); c.innerHTML='';
-    if(!snap.exists()){ c.innerHTML='<p>No notifications</p>'; return; }
-    snap.forEach(n=>{ const d=document.createElement('div'); d.className='item'; d.innerText = JSON.stringify(n.val()); c.appendChild(d); });
-  });
-}
+/* ---------- init loaders ---------- */
+function loadWithdrawals(){ /* defined above */ }
+function loadPosts(){ /* defined above */ }
+
+// call loaders
+// (they are hooked in init)
 </script>
-</body></html>
+</body>
+</html>
 HTML
