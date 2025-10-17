@@ -1,157 +1,57 @@
-// Main app logic (index + dashboard)
-// NOTE: Replace FIREBASE_CONFIG with your project's config
-const FIREBASE_CONFIG = {
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { getDatabase, ref, get, set, push, onValue } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+
+const firebaseConfig = {
   apiKey: "AIzaSyBMV7NUVLf-9aEer5jlhqOv5u_Z7XM5oVo",
   authDomain: "refer-and-earn-74706.firebaseapp.com",
   databaseURL: "https://refer-and-earn-74706-default-rtdb.firebaseio.com",
   projectId: "refer-and-earn-74706",
-  storageBucket: "refer-and-earn-74706.firebasestorage.app",
+  storageBucket: "refer-and-earn-74706.appspot.com",
   messagingSenderId: "681290792261",
-  appId: "1:681290792261:web:982ae0c9f81b7291bc922c",
-  measurementId: "G-GYJ5D768D6"
+  appId: "1:681290792261:web:982ae0c9f81b7291bc922c"
 };
 
-const PAYSTACK_PUBLIC_KEY = 'pk_test_9aa45bcaad7262c006c56d37d2c487fd2dd6afce';
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const auth = getAuth(app);
 
-firebase.initializeApp(FIREBASE_CONFIG);
-const auth = firebase.auth();
-const db = firebase.database();
-const storage = firebase.storage();
-
-// SPLASH
-window.addEventListener('load', ()=>{
-  setTimeout(()=>{
-    document.getElementById('splash').style.display='none';
-    document.getElementById('main-app').style.display='block';
-    initAuthUi();
-  },900);
-});
-
-function initAuthUi(){
-  const showSignup = document.getElementById('show-signup');
-  const showLogin = document.getElementById('show-login');
-  showSignup?.addEventListener('click', e=>{e.preventDefault();toggleForms(true)});
-  showLogin?.addEventListener('click', e=>{e.preventDefault();toggleForms(false)});
-
-  document.getElementById('btn-signup')?.addEventListener('click', signup);
-  document.getElementById('btn-login')?.addEventListener('click', login);
-}
-
-function toggleForms(signup){
-  document.getElementById('login-form').style.display = signup? 'none':'block';
-  document.getElementById('signup-form').style.display = signup? 'block':'none';
-}
-
-async function signup(){
-  const email = document.getElementById('su-email').value.trim();
-  const pass = document.getElementById('su-password').value;
-  const username = document.getElementById('su-username').value.trim();
-  const refcode = document.getElementById('su-ref').value.trim();
-  if(!email||!pass||!username) return alert('Complete fields');
-
-  try{
-    const userCredential = await auth.createUserWithEmailAndPassword(email,pass);
-    const uid = userCredential.user.uid;
-    // ensure username unique — quick naive check
-    const unameSnap = await db.ref('usernames/'+username).once('value');
-    if(unameSnap.exists()){ alert('Username taken'); await userCredential.user.delete(); return; }
-    await db.ref('usernames/'+username).set(uid);
-
-    const profile = {uid,username,email,balance:0,createdAt:Date.now(),dailyClaim:0,referrer: refcode||null,shares:0};
-    await db.ref('users/'+uid).set(profile);
-    // if refcode present, credit referrer ₦50
-    if(refcode){
-      const refUidSnap = await db.ref('usernames/'+refcode).once('value');
-      if(refUidSnap.exists()){
-        const refUid = refUidSnap.val();
-        await credit(refUid,50,'Referral signup');
-      }
-    }
-    // auto-generate referral slug is username
-    // done
-    alert('Account created — please login');
-    toggleForms(false);
-  }catch(err){console.error(err);alert(err.message)}
-}
-
-async function login(){
-  const email = document.getElementById('email').value.trim();
-  const pass = document.getElementById('password').value;
-  try{
-    await auth.signInWithEmailAndPassword(email,pass);
-    // redirect to dashboard
-    window.location.href = 'dashboard.html';
-  }catch(err){alert(err.message)}
-}
-
-// Credit helper
-async function credit(uid,amount,reason){
-  const balRef = db.ref('users/'+uid+'/balance');
-  const snap = await balRef.once('value');
-  const current = snap.exists()? Number(snap.val()):0;
-  const updated = current + Number(amount);
-  await balRef.set(updated);
-  // log
-  const tx = {uid,amount,reason,ts:Date.now()};
-  await db.ref('transactions').push(tx);
-}
-
-// Dashboard logic (runs on dashboard.html)
-if(window.location.pathname.endsWith('dashboard.html')){
-  auth.onAuthStateChanged(async user=>{
-    if(!user) return window.location.href='index.html';
+onAuthStateChanged(auth, (user) => {
+  if (user) {
     const uid = user.uid;
-    const profSnap = await db.ref('users/'+uid).once('value');
-    const profile = profSnap.val();
-    document.getElementById('u-name').textContent = profile.username;
-    document.getElementById('u-balance').textContent = profile.balance||0;
-    const base = location.origin.replace(/https?:\/\//,'');
-    const link = `${location.origin}/?ref=${profile.username}`;
-    document.getElementById('ref-link').value = link;
+    const userRef = ref(db, "users/" + uid);
 
-    // Show ads
-    db.ref('ads').orderByChild('approved').equalTo(true).once('value',snap=>{
-      const adsEl = document.getElementById('ads-list'); adsEl.innerHTML='';
-      snap.forEach(s=>{ const a = s.val(); const img = document.createElement('img'); img.src=a.img; img.onclick=()=>window.open(a.link,'_blank'); adsEl.appendChild(img); });
+    onValue(userRef, (snap) => {
+      const data = snap.val();
+      if (!data.approved) {
+        document.body.innerHTML = "<h3>Waiting for admin approval...</h3>";
+      } else {
+        document.getElementById("userInfo").innerHTML = `
+          <p>Email: ${data.email}</p>
+          <p>Balance: ₦${data.balance}</p>
+          <p>Level: ${data.stars}</p>
+        `;
+        document.getElementById("refLink").value = `${location.origin}/index.html?ref=${uid}`;
+      }
     });
 
-    // Share actions
-    document.getElementById('copy-ref').onclick = ()=>{ navigator.clipboard.writeText(link); alert('Link copied'); }
-    document.getElementById('share-wa').onclick = ()=>{ shareTo(`https://wa.me/?text=${encodeURIComponent(link)}`, uid); }
-    document.getElementById('share-fb').onclick = ()=>{ shareTo(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}`, uid); }
-    document.getElementById('share-tw').onclick = ()=>{ shareTo(`https://twitter.com/intent/tweet?text=${encodeURIComponent(link)}`, uid); }
-    document.getElementById('share-tele').onclick = ()=>{ shareTo(`https://t.me/share/url?url=${encodeURIComponent(link)}`, uid); }
+    document.getElementById("uploadPost").addEventListener("click", async () => {
+      const text = document.getElementById("postText").value;
+      const file = document.getElementById("postImage").files[0];
+      const newPost = push(ref(db, "posts/"));
+      await set(newPost, { uid, text, timestamp: Date.now() });
+      alert("Posted!");
+    });
 
-    document.getElementById('btn-daily').onclick = async ()=>{
-      const userRef = db.ref('users/'+uid+'/dailyClaim');
-      const last = (await userRef.once('value')).val()||0;
-      const now = Date.now();
-      if(now - last < 24*3600*1000) return alert('Daily bonus already claimed');
-      await userRef.set(now);
-      await credit(uid,25,'Daily bonus');
-      alert('Daily bonus credited ₦25');
-      document.getElementById('u-balance').textContent = (Number(profile.balance||0)+25);
-    }
-
-    document.getElementById('btn-upload').onclick = ()=>{ window.location.href='upload-story.html'; }
-
-    document.getElementById('btn-withdraw').onclick = async ()=>{
-      const amt = Number(document.getElementById('withdraw-amount').value||0);
-      const account = document.getElementById('withdraw-account').value.trim();
-      if(!amt||amt<=0) return alert('Enter valid amount');
-      // push request — admin approves
-      await db.ref('withdrawals').push({uid,amt,account,ts:Date.now(),status:'pending'});
-      document.getElementById('withdraw-status').textContent = 'Requested — awaiting admin approval';
-    }
-
-  });
-}
-
-function shareTo(url, uid){
-  window.open(url,'_blank');
-  // reward share instantly
-  credit(uid,10,'Share to social');
-}
-
-// Expose credit for other pages (story.js, admin.js)
-window.appHelpers = {credit,db,auth,storage};
+    onValue(ref(db, "posts/"), (snap) => {
+      const feed = document.getElementById("feed");
+      feed.innerHTML = "";
+      snap.forEach((child) => {
+        const post = child.val();
+        feed.innerHTML += `<div class='post'><p>${post.text}</p><small>${new Date(post.timestamp).toLocaleString()}</small></div>`;
+      });
+    });
+  } else {
+    window.location.href = "index.html";
+  }
+});
